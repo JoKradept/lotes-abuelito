@@ -1,8 +1,109 @@
 @import "tailwindcss";
 
-@theme {
-  --color-brand: #b91c1c;
-  --font-sans: system-ui, -apple-system, sans-serif;
+/*
+ * Design tokens y estética "frosted glass" heredados de concept-hug.
+ * Papel claro azulado, vidrio esmerilado, tinta índigo. Colores oklch.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 8px);
+  --radius-md: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 12px);
+  --radius-3xl: calc(var(--radius) + 18px);
+
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-disponible: var(--disponible);
+  --color-disponible-soft: var(--disponible-soft);
+  --color-apartado: var(--apartado);
+  --color-apartado-soft: var(--apartado-soft);
+  --color-vendido: var(--vendido);
+  --color-vendido-soft: var(--vendido-soft);
+  --color-liquidado: var(--liquidado);
+  --color-liquidado-soft: var(--liquidado-soft);
 }
 
-body { font-family: var(--font-sans); }
+:root {
+  --radius: 1rem;
+  --background: oklch(0.955 0.008 255);
+  --foreground: oklch(0.24 0.055 277);
+  --card: oklch(1 0 0 / 55%);
+  --card-foreground: oklch(0.24 0.055 277);
+  --primary: oklch(0.51 0.22 277);
+  --primary-foreground: oklch(0.99 0.003 255);
+  --secondary: oklch(1 0 0 / 60%);
+  --muted: oklch(1 0 0 / 45%);
+  --muted-foreground: oklch(0.52 0.03 271);
+  --accent: oklch(0.68 0.14 232);
+  --accent-foreground: oklch(0.99 0.003 255);
+  --destructive: oklch(0.58 0.2 27);
+  --border: oklch(1 0 0 / 70%);
+  --input: oklch(1 0 0 / 70%);
+  --ring: oklch(0.51 0.22 277);
+
+  --disponible: oklch(0.62 0.13 162);
+  --disponible-soft: oklch(0.62 0.13 162 / 12%);
+  --apartado: oklch(0.68 0.15 70);
+  --apartado-soft: oklch(0.68 0.15 70 / 14%);
+  --vendido: oklch(0.55 0.02 271);
+  --vendido-soft: oklch(0.55 0.02 271 / 12%);
+  --liquidado: oklch(0.51 0.22 277);
+  --liquidado-soft: oklch(0.51 0.22 277 / 12%);
+}
+
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@utility glass {
+  background-color: oklch(1 0 0 / 55%);
+  border: 1px solid oklch(1 0 0 / 70%);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 60px -32px oklch(0.51 0.22 277 / 45%);
+}
+
+@utility glass-soft {
+  background-color: oklch(1 0 0 / 42%);
+  border: 1px solid oklch(1 0 0 / 60%);
+  backdrop-filter: blur(12px);
+}
+
+@keyframes blobA {
+  0%, 100% { transform: translate(-8%, -6%) scale(1); }
+  50%      { transform: translate(6%, 10%) scale(1.15); }
+}
+@keyframes blobB {
+  0%, 100% { transform: translate(10%, 8%) scale(1.1); }
+  50%      { transform: translate(-6%, -10%) scale(0.95); }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.blob-a { animation: blobA 16s ease-in-out infinite; }
+.blob-b { animation: blobB 18s ease-in-out infinite; }
+.rise   { animation: rise 500ms cubic-bezier(0.32, 0.72, 0, 1) both; }

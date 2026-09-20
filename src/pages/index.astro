@@ -1,43 +1,81 @@
 ---
 import Base from "../layouts/Base.astro";
-import { loadLotes } from "../lib/domain";
-const lotes = await loadLotes();
-const porManzana = new Map<string, typeof lotes>();
-for (const l of lotes) {
-  if (!porManzana.has(l.manzana)) porManzana.set(l.manzana, []);
-  porManzana.get(l.manzana)!.push(l);
-}
-const manzanasOrdenadas = [...porManzana.keys()].sort();
-const colorEstado = {
-  Disponible: "bg-blue-500/40 border-blue-400 hover:bg-orange-400",
-  Apartado: "bg-yellow-500/50 border-yellow-400",
-  Vendido: "bg-slate-500/50 border-slate-400",
-  Liquidado: "bg-emerald-500/50 border-emerald-400",
+import { loadLotes, loadVentas, loadAbonos, saldoVenta } from "../lib/domain";
+import { PlanoInteractivo } from "../components/PlanoInteractivo";
+import { pesos } from "../lib/format";
+
+const [lotes, ventas, abonos] = await Promise.all([loadLotes(), loadVentas(), loadAbonos()]);
+
+const manzanaActiva = Astro.url.searchParams.get("manzana") ?? "A";
+
+const conSaldo = ventas.filter((v) => saldoVenta(v, abonos) > 0);
+const porCobrar = conSaldo.reduce((s, v) => s + saldoVenta(v, abonos), 0);
+
+const totales = {
+  total: lotes.length,
+  disponibles: lotes.filter((l) => l.estado === "Disponible").length,
+  apartados: lotes.filter((l) => l.estado === "Apartado").length,
+  vendidos: lotes.filter((l) => l.estado === "Vendido").length,
+  liquidados: lotes.filter((l) => l.estado === "Liquidado").length,
+  porCobrar,
+};
+
+const kpis = [
+  { etiqueta: "Lotes totales", valor: String(totales.total), color: "text-foreground" },
+  { etiqueta: "Disponibles", valor: String(totales.disponibles), color: "text-disponible" },
+  { etiqueta: "Apartados", valor: String(totales.apartados), color: "text-apartado" },
+  { etiqueta: "Vendidos", valor: String(totales.vendidos), color: "text-vendido" },
+  { etiqueta: "Por cobrar", valor: pesos(totales.porCobrar), color: "text-primary" },
+];
+
+const MANZANAS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
+const ESTADOS = ["Disponible", "Apartado", "Vendido", "Liquidado"] as const;
+const ESTADO_STYLE: Record<string, { chip: string; texto: string; punto: string }> = {
+  Disponible: { chip: "bg-disponible-soft ring-disponible/25", texto: "text-disponible", punto: "bg-disponible" },
+  Apartado:   { chip: "bg-apartado-soft ring-apartado/30",     texto: "text-apartado",   punto: "bg-apartado" },
+  Vendido:    { chip: "bg-vendido-soft ring-vendido/25",       texto: "text-vendido",    punto: "bg-vendido" },
+  Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado",  punto: "bg-liquidado" },
 };
 ---
 <Base title="Plano — Cumbres de Tiripetío">
-  <div class="space-y-6">
-    <p class="text-sm text-neutral-400">
-      {lotes.length} lotes en {manzanasOrdenadas.length} manzanas. Click en un lote para ver detalle.
-    </p>
-    {manzanasOrdenadas.map((mz) => {
-      const items = porManzana.get(mz)!.sort((a, b) => a.numero - b.numero);
-      return (
-        <section class="space-y-2">
-          <h2 class="text-lg font-bold">Manzana {mz} <span class="text-neutral-400 text-sm font-normal">· {items.length} lotes</span></h2>
-          <div class="grid gap-1 grid-cols-[repeat(auto-fill,minmax(60px,1fr))]">
-            {items.map((l) => (
-              <a
-                href={`/lotes/${l.loteId}`}
-                class={`aspect-square flex items-center justify-center text-xs font-semibold border rounded transition ${colorEstado[l.estado]}`}
-                title={`${l.loteId} · ${l.estado} · ${l.frente}x${l.fondo}m`}
-              >
-                {l.numero}
-              </a>
-            ))}
-          </div>
-        </section>
-      );
-    })}
-  </div>
+  <section class="rise mb-6 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+    <div>
+      <p class="mb-2 font-mono text-xs uppercase tracking-[0.2em] text-accent">Vista general</p>
+      <h1 class="text-4xl font-extrabold leading-[0.95] tracking-tight lg:text-5xl">Lotes por manzana</h1>
+      <p class="mt-2 max-w-[52ch] text-muted-foreground">
+        Los datos se leen y guardan en la hoja de Google del abuelito. Elige un lote para ver medidas, precio, cliente y saldo.
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 font-mono text-xs">
+      {ESTADOS.map((e) => (
+        <span class={`flex items-center gap-1.5 rounded-full px-3 py-1.5 ring-1 ${ESTADO_STYLE[e].chip} ${ESTADO_STYLE[e].texto}`}>
+          <span class={`size-2 rounded-full ${ESTADO_STYLE[e].punto}`}></span>{e}
+        </span>
+      ))}
+    </div>
+  </section>
+
+  <section class="rise mb-7 grid grid-cols-2 gap-4 lg:grid-cols-5" style="animation-delay: 80ms">
+    {kpis.map((k) => (
+      <div class="glass rounded-3xl p-5">
+        <p class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{k.etiqueta}</p>
+        <p class={`mt-2 font-mono text-3xl font-semibold tracking-tight ${k.color}`}>{k.valor}</p>
+      </div>
+    ))}
+  </section>
+
+  <section class="rise mb-4" style="animation-delay: 110ms">
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <p class="font-mono text-xs uppercase tracking-wider text-muted-foreground">Mapa interactivo</p>
+      <p class="font-mono text-[11px] text-muted-foreground">Cada rectángulo es un lote, coloreado por estado</p>
+    </div>
+    <PlanoInteractivo client:load lotes={lotes} manzanaActiva={manzanaActiva} />
+  </section>
+
+  <section class="rise flex flex-wrap items-center gap-1.5" style="animation-delay: 140ms">
+    <a href="/" class={`h-9 rounded-xl px-3 grid place-items-center font-mono text-xs font-semibold transition ${!Astro.url.searchParams.get("manzana") ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>Todas</a>
+    {MANZANAS.map((m) => (
+      <a href={`/?manzana=${m}`} class={`h-9 rounded-xl px-3 grid place-items-center font-mono text-xs font-semibold transition ${manzanaActiva === m ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>Manzana {m}</a>
+    ))}
+  </section>
 </Base>

@@ -1,6 +1,6 @@
 ---
 import "../styles/globals.css";
-const { title = "Lotes Abuelito" } = Astro.props;
+const { title = "Lotificación — Cumbres de Tiripetío" } = Astro.props;
 const path = Astro.url.pathname;
 const nav = [
   ["/", "Plano"],
@@ -15,16 +15,36 @@ const nav = [
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
 </head>
-<body class="min-h-screen bg-neutral-950 text-neutral-100">
-<header class="border-b border-neutral-800 px-4 py-3 flex flex-wrap items-center gap-4">
-  <h1 class="font-bold">Cumbres de Tiripetío</h1>
-  <nav class="flex gap-2 text-sm">
-    {nav.map(([href, label]) => (
-      <a href={href} class={`px-3 py-1 rounded ${path === href ? "bg-neutral-100 text-neutral-900" : "hover:bg-neutral-800"}`}>{label}</a>
-    ))}
-  </nav>
-</header>
-<main class="p-4"><slot /></main>
+<body class="relative min-h-screen overflow-x-hidden">
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="blob-a absolute -left-32 -top-32 size-[460px] rounded-full bg-primary/30 blur-[130px]"></div>
+    <div class="blob-b absolute right-0 top-1/4 size-[420px] rounded-full bg-accent/30 blur-[130px]"></div>
+    <div class="blob-a absolute bottom-0 left-1/3 size-[380px] rounded-full bg-disponible/20 blur-[130px]"></div>
+  </div>
+
+  <header class="glass sticky top-0 z-30 rounded-none border-x-0 border-t-0">
+    <div class="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-5 py-3 lg:px-8">
+      <div class="flex items-center gap-3">
+        <div class="grid size-11 place-items-center rounded-2xl bg-primary font-mono text-xs font-bold text-primary-foreground shadow-lg shadow-primary/30">
+          LOT
+        </div>
+        <div class="leading-tight">
+          <p class="text-lg font-extrabold tracking-tight">Lotificación</p>
+          <p class="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Cumbres de Tiripetío · Michoacán</p>
+        </div>
+      </div>
+      <nav class="flex flex-wrap items-center gap-1.5 font-mono text-xs font-semibold">
+        {nav.map(([href, label]) => (
+          <a href={href} class={`h-9 rounded-xl px-3 grid place-items-center transition ${path === href ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>{label}</a>
+        ))}
+      </nav>
+    </div>
+  </header>
+
+  <main class="relative mx-auto max-w-[1440px] px-5 py-7 lg:px-8"><slot /></main>
 </body>
 </html>
