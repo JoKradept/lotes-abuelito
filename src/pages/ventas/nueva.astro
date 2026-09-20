@@ -1,0 +1,60 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadLotes, loadClientes } from "../../lib/domain";
+import { actions } from "astro:actions";
+const [lotes, clientes] = await Promise.all([loadLotes(), loadClientes()]);
+const disponibles = lotes.filter((l) => l.estado === "Disponible" || l.estado === "Apartado");
+const loteSel = Astro.url.searchParams.get("loteId") ?? "";
+const result = Astro.getActionResult(actions.crearVenta);
+if (result && !result.error) return Astro.redirect(`/lotes/${result.data.loteId ?? loteSel}`);
+---
+<Base title="Nueva venta">
+  <form method="POST" action={actions.crearVenta} class="max-w-md space-y-4">
+    <h1 class="text-2xl font-bold">Registrar venta</h1>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Lote</span>
+      <select name="loteId" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
+        {disponibles.map((l) => (
+          <option value={l.loteId} selected={l.loteId === loteSel}>
+            {l.loteId} — {l.frente}×{l.fondo}m — {l.estado}
+          </option>
+        ))}
+      </select>
+    </label>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Cliente</span>
+      <select name="clienteId" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
+        {clientes.map((c) => (
+          <option value={c.clienteId}>{c.clienteId} — {c.nombre}</option>
+        ))}
+      </select>
+      <a href="/clientes/nuevo" class="text-xs text-blue-400 hover:underline">+ Nuevo cliente</a>
+    </label>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Fecha</span>
+      <input type="date" name="fecha" required value={new Date().toISOString().slice(0, 10)} class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+    </label>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Precio final</span>
+      <input type="number" name="precioFinal" required min="0" step="1" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+    </label>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Enganche</span>
+      <input type="number" name="enganche" min="0" step="1" value="0" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+    </label>
+
+    <label class="block">
+      <span class="text-sm opacity-70">Notas</span>
+      <textarea name="notas" rows="2" class="w-full mt-1 p-2 bg-neutral-800 rounded"></textarea>
+    </label>
+
+    {result?.error && <p class="text-red-400">{result.error.message}</p>}
+
+    <button type="submit" class="w-full py-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Guardar venta</button>
+  </form>
+</Base>

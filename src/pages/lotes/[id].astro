@@ -1,0 +1,93 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadLotes, loadVentas, loadClientes, loadAbonos, saldoVenta } from "../../lib/domain";
+const { id } = Astro.params;
+const [lotes, ventas, clientes, abonos] = await Promise.all([
+  loadLotes(), loadVentas(), loadClientes(), loadAbonos(),
+]);
+const lote = lotes.find((l) => l.loteId === id);
+if (!lote) return Astro.redirect("/lotes");
+const venta = ventas.find((v) => v.loteId === lote.loteId);
+const cliente = venta ? clientes.find((c) => c.clienteId === venta.clienteId) : null;
+const abonosVenta = venta
+  ? abonos.filter((a) => a.ventaId === venta.ventaId).sort((a, b) => b.fecha.localeCompare(a.fecha))
+  : [];
+const saldo = venta ? saldoVenta(venta, abonos) : 0;
+---
+<Base title={`Lote ${lote.loteId}`}>
+  <div class="max-w-3xl space-y-6">
+    <div class="flex items-baseline gap-4">
+      <h1 class="text-3xl font-bold font-mono">{lote.loteId}</h1>
+      <span class={`px-3 py-1 rounded ${
+        lote.estado === "Disponible" ? "bg-blue-500/30" :
+        lote.estado === "Apartado" ? "bg-yellow-500/30" :
+        lote.estado === "Vendido" ? "bg-slate-500/30" : "bg-emerald-500/30"
+      }`}>{lote.estado}</span>
+    </div>
+
+    <dl class="grid grid-cols-2 gap-3 text-sm bg-neutral-900 p-4 rounded">
+      <div><dt class="opacity-60">Manzana</dt><dd class="text-lg">{lote.manzana}</dd></div>
+      <div><dt class="opacity-60">Número global</dt><dd class="text-lg">{lote.numero}</dd></div>
+      <div><dt class="opacity-60">Medidas</dt><dd class="text-lg">{lote.frente}×{lote.fondo} m ({lote.frente * lote.fondo} m²)</dd></div>
+      <div><dt class="opacity-60">Calle</dt><dd class="text-lg">{lote.calle || "—"}</dd></div>
+      <div><dt class="opacity-60">Precio lista</dt><dd class="text-lg">{lote.precioLista ? `$${lote.precioLista.toLocaleString("es-MX")}` : "—"}</dd></div>
+      <div><dt class="opacity-60">Esquina</dt><dd class="text-lg">{lote.esquina ? "Sí" : "No"}</dd></div>
+    </dl>
+
+    {venta && cliente && (
+      <section class="space-y-3">
+        <h2 class="text-xl font-bold">Venta {venta.ventaId}</h2>
+        <dl class="grid grid-cols-2 gap-3 text-sm bg-neutral-900 p-4 rounded">
+          <div><dt class="opacity-60">Cliente</dt><dd class="text-lg">{cliente.nombre}</dd></div>
+          <div><dt class="opacity-60">Teléfono</dt><dd class="text-lg">{cliente.telefono || "—"}</dd></div>
+          <div><dt class="opacity-60">Fecha</dt><dd class="text-lg">{venta.fecha}</dd></div>
+          <div><dt class="opacity-60">Precio final</dt><dd class="text-lg">${venta.precioFinal.toLocaleString("es-MX")}</dd></div>
+          <div><dt class="opacity-60">Enganche</dt><dd class="text-lg">${venta.enganche.toLocaleString("es-MX")}</dd></div>
+          <div><dt class="opacity-60">Saldo</dt>
+            <dd class={`text-2xl font-bold ${saldo <= 0 ? "text-emerald-400" : "text-orange-400"}`}>
+              ${saldo.toLocaleString("es-MX")}
+            </dd>
+          </div>
+        </dl>
+
+        <div class="flex justify-between items-center">
+          <h3 class="text-lg font-bold">Abonos ({abonosVenta.length})</h3>
+          <a href={`/abonos/nuevo?ventaId=${venta.ventaId}`} class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-sm">+ Registrar abono</a>
+        </div>
+        {abonosVenta.length === 0 ? (
+          <p class="text-neutral-500 text-sm">Sin abonos aún.</p>
+        ) : (
+          <table class="w-full text-sm">
+            <thead class="bg-neutral-900 text-left">
+              <tr><th class="p-2">ID</th><th class="p-2">Fecha</th><th class="p-2">Monto</th><th class="p-2">Método</th><th class="p-2">Nota</th></tr>
+            </thead>
+            <tbody>
+              {abonosVenta.map((a) => (
+                <tr class={`border-b border-neutral-800 ${a.cancelado ? "line-through opacity-50" : ""}`}>
+                  <td class="p-2 font-mono">{a.abonoId}</td>
+                  <td class="p-2">{a.fecha}</td>
+                  <td class="p-2">${a.monto.toLocaleString("es-MX")}</td>
+                  <td class="p-2">{a.metodo}</td>
+                  <td class="p-2">{a.nota}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    )}
+
+    {!venta && lote.estado === "Disponible" && (
+      <a href={`/ventas/nueva?loteId=${lote.loteId}`} class="inline-block px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500">
+        Registrar venta
+      </a>
+    )}
+
+    {lote.notas && (
+      <div class="bg-neutral-900 p-4 rounded text-sm">
+        <dt class="opacity-60 mb-1">Notas</dt>
+        <dd>{lote.notas}</dd>
+      </div>
+    )}
+  </div>
+</Base>

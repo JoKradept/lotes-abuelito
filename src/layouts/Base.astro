@@ -1,0 +1,30 @@
+---
+import "../styles/globals.css";
+const { title = "Lotes Abuelito" } = Astro.props;
+const path = Astro.url.pathname;
+const nav = [
+  ["/", "Plano"],
+  ["/lotes", "Lotes"],
+  ["/ventas", "Ventas"],
+  ["/clientes", "Clientes"],
+  ["/abonos/nuevo", "+ Abono"],
+];
+---
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+</head>
+<body class="min-h-screen bg-neutral-950 text-neutral-100">
+<header class="border-b border-neutral-800 px-4 py-3 flex flex-wrap items-center gap-4">
+  <h1 class="font-bold">Cumbres de Tiripetío</h1>
+  <nav class="flex gap-2 text-sm">
+    {nav.map(([href, label]) => (
+      <a href={href} class={`px-3 py-1 rounded ${path === href ? "bg-neutral-100 text-neutral-900" : "hover:bg-neutral-800"}`}>{label}</a>
+    ))}
+  </nav>
+</header>
+<main class="p-4"><slot /></main>
+</body>
+</html>

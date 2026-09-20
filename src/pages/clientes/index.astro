@@ -1,0 +1,26 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadClientes } from "../../lib/domain";
+const clientes = await loadClientes();
+---
+<Base title="Clientes">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Clientes ({clientes.length})</h1>
+    <a href="/clientes/nuevo" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-sm">+ Nuevo</a>
+  </div>
+  <table class="w-full text-sm">
+    <thead class="bg-neutral-900 text-left">
+      <tr><th class="p-2">ID</th><th class="p-2">Nombre</th><th class="p-2">Teléfono</th><th class="p-2">Dirección</th></tr>
+    </thead>
+    <tbody>
+      {clientes.map((c) => (
+        <tr class="border-b border-neutral-800 hover:bg-neutral-900">
+          <td class="p-2 font-mono">{c.clienteId}</td>
+          <td class="p-2">{c.nombre}</td>
+          <td class="p-2">{c.telefono || "—"}</td>
+          <td class="p-2">{c.direccion || "—"}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</Base>

@@ -1,0 +1,43 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadLotes } from "../lib/domain";
+const lotes = await loadLotes();
+const porManzana = new Map<string, typeof lotes>();
+for (const l of lotes) {
+  if (!porManzana.has(l.manzana)) porManzana.set(l.manzana, []);
+  porManzana.get(l.manzana)!.push(l);
+}
+const manzanasOrdenadas = [...porManzana.keys()].sort();
+const colorEstado = {
+  Disponible: "bg-blue-500/40 border-blue-400 hover:bg-orange-400",
+  Apartado: "bg-yellow-500/50 border-yellow-400",
+  Vendido: "bg-slate-500/50 border-slate-400",
+  Liquidado: "bg-emerald-500/50 border-emerald-400",
+};
+---
+<Base title="Plano — Cumbres de Tiripetío">
+  <div class="space-y-6">
+    <p class="text-sm text-neutral-400">
+      {lotes.length} lotes en {manzanasOrdenadas.length} manzanas. Click en un lote para ver detalle.
+    </p>
+    {manzanasOrdenadas.map((mz) => {
+      const items = porManzana.get(mz)!.sort((a, b) => a.numero - b.numero);
+      return (
+        <section class="space-y-2">
+          <h2 class="text-lg font-bold">Manzana {mz} <span class="text-neutral-400 text-sm font-normal">· {items.length} lotes</span></h2>
+          <div class="grid gap-1 grid-cols-[repeat(auto-fill,minmax(60px,1fr))]">
+            {items.map((l) => (
+              <a
+                href={`/lotes/${l.loteId}`}
+                class={`aspect-square flex items-center justify-center text-xs font-semibold border rounded transition ${colorEstado[l.estado]}`}
+                title={`${l.loteId} · ${l.estado} · ${l.frente}x${l.fondo}m`}
+              >
+                {l.numero}
+              </a>
+            ))}
+          </div>
+        </section>
+      );
+    })}
+  </div>
+</Base>

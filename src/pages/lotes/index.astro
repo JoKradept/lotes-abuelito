@@ -1,0 +1,59 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadLotes } from "../../lib/domain";
+const lotes = await loadLotes();
+const filtroEstado = Astro.url.searchParams.get("estado");
+const filtroManzana = Astro.url.searchParams.get("manzana");
+let filtered = lotes;
+if (filtroEstado) filtered = filtered.filter((l) => l.estado === filtroEstado);
+if (filtroManzana) filtered = filtered.filter((l) => l.manzana === filtroManzana);
+filtered = [...filtered].sort((a, b) => a.numero - b.numero);
+const manzanas = [...new Set(lotes.map((l) => l.manzana))].sort();
+---
+<Base title="Lotes">
+  <div class="mb-4 flex flex-wrap gap-3 text-sm">
+    <a href="/lotes" class="px-3 py-1 rounded bg-neutral-800">Todos ({lotes.length})</a>
+    {["Disponible", "Apartado", "Vendido", "Liquidado"].map((e) => (
+      <a href={`/lotes?estado=${e}`} class={`px-3 py-1 rounded ${filtroEstado === e ? "bg-neutral-100 text-neutral-900" : "bg-neutral-800 hover:bg-neutral-700"}`}>
+        {e} ({lotes.filter((l) => l.estado === e).length})
+      </a>
+    ))}
+    <select class="ml-auto bg-neutral-800 rounded px-2 py-1" onchange="location = this.value">
+      <option value="/lotes">Manzana: todas</option>
+      {manzanas.map((mz) => (
+        <option value={`/lotes?manzana=${mz}`} selected={filtroManzana === mz}>Manzana {mz}</option>
+      ))}
+    </select>
+  </div>
+
+  <table class="w-full text-sm">
+    <thead class="bg-neutral-900 text-left">
+      <tr>
+        <th class="p-2">Lote</th>
+        <th class="p-2">Manzana</th>
+        <th class="p-2">Medidas</th>
+        <th class="p-2">Calle</th>
+        <th class="p-2">Precio lista</th>
+        <th class="p-2">Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {filtered.map((l) => (
+        <tr class="border-b border-neutral-800 hover:bg-neutral-900">
+          <td class="p-2 font-mono"><a href={`/lotes/${l.loteId}`} class="hover:underline">{l.loteId}</a></td>
+          <td class="p-2">{l.manzana}</td>
+          <td class="p-2">{l.frente}×{l.fondo} m</td>
+          <td class="p-2">{l.calle || "—"}</td>
+          <td class="p-2">{l.precioLista ? `$${l.precioLista.toLocaleString("es-MX")}` : "—"}</td>
+          <td class="p-2">
+            <span class={`px-2 py-0.5 rounded text-xs ${
+              l.estado === "Disponible" ? "bg-blue-500/30" :
+              l.estado === "Apartado" ? "bg-yellow-500/30" :
+              l.estado === "Vendido" ? "bg-slate-500/30" : "bg-emerald-500/30"
+            }`}>{l.estado}</span>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</Base>
