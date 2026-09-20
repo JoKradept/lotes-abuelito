@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { loadLotes } from "../../lib/domain";
+import { pesos } from "../../lib/format";
 const lotes = await loadLotes();
 const filtroEstado = Astro.url.searchParams.get("estado");
 const filtroManzana = Astro.url.searchParams.get("manzana");
@@ -9,16 +10,25 @@ if (filtroEstado) filtered = filtered.filter((l) => l.estado === filtroEstado);
 if (filtroManzana) filtered = filtered.filter((l) => l.manzana === filtroManzana);
 filtered = [...filtered].sort((a, b) => a.numero - b.numero);
 const manzanas = [...new Set(lotes.map((l) => l.manzana))].sort();
+
+const ESTILO = {
+  Disponible: { chip: "bg-disponible-soft ring-disponible/25", texto: "text-disponible" },
+  Apartado:   { chip: "bg-apartado-soft ring-apartado/30",     texto: "text-apartado" },
+  Vendido:    { chip: "bg-vendido-soft ring-vendido/25",       texto: "text-vendido" },
+  Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado" },
+};
 ---
 <Base title="Lotes">
-  <div class="mb-4 flex flex-wrap gap-3 text-sm">
-    <a href="/lotes" class="px-3 py-1 rounded bg-neutral-800">Todos ({lotes.length})</a>
+  <h1 class="text-3xl font-extrabold tracking-tight mb-4">Lotes ({lotes.length})</h1>
+
+  <div class="mb-5 flex flex-wrap gap-2 text-xs font-mono">
+    <a href="/lotes" class={`h-9 rounded-xl px-3 grid place-items-center transition ${!filtroEstado ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>Todos ({lotes.length})</a>
     {["Disponible", "Apartado", "Vendido", "Liquidado"].map((e) => (
-      <a href={`/lotes?estado=${e}`} class={`px-3 py-1 rounded ${filtroEstado === e ? "bg-neutral-100 text-neutral-900" : "bg-neutral-800 hover:bg-neutral-700"}`}>
+      <a href={`/lotes?estado=${e}`} class={`h-9 rounded-xl px-3 grid place-items-center transition ${filtroEstado === e ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>
         {e} ({lotes.filter((l) => l.estado === e).length})
       </a>
     ))}
-    <select class="ml-auto bg-neutral-800 rounded px-2 py-1" onchange="location = this.value">
+    <select class="ml-auto glass-soft h-9 rounded-xl px-3 text-xs outline-none" onchange="location = this.value">
       <option value="/lotes">Manzana: todas</option>
       {manzanas.map((mz) => (
         <option value={`/lotes?manzana=${mz}`} selected={filtroManzana === mz}>Manzana {mz}</option>
@@ -26,34 +36,32 @@ const manzanas = [...new Set(lotes.map((l) => l.manzana))].sort();
     </select>
   </div>
 
-  <table class="w-full text-sm">
-    <thead class="bg-neutral-900 text-left">
-      <tr>
-        <th class="p-2">Lote</th>
-        <th class="p-2">Manzana</th>
-        <th class="p-2">Medidas</th>
-        <th class="p-2">Calle</th>
-        <th class="p-2">Precio lista</th>
-        <th class="p-2">Estado</th>
-      </tr>
-    </thead>
-    <tbody>
-      {filtered.map((l) => (
-        <tr class="border-b border-neutral-800 hover:bg-neutral-900">
-          <td class="p-2 font-mono"><a href={`/lotes/${l.loteId}`} class="hover:underline">{l.loteId}</a></td>
-          <td class="p-2">{l.manzana}</td>
-          <td class="p-2">{l.frente}×{l.fondo} m</td>
-          <td class="p-2">{l.calle || "—"}</td>
-          <td class="p-2">{l.precioLista ? `$${l.precioLista.toLocaleString("es-MX")}` : "—"}</td>
-          <td class="p-2">
-            <span class={`px-2 py-0.5 rounded text-xs ${
-              l.estado === "Disponible" ? "bg-blue-500/30" :
-              l.estado === "Apartado" ? "bg-yellow-500/30" :
-              l.estado === "Vendido" ? "bg-slate-500/30" : "bg-emerald-500/30"
-            }`}>{l.estado}</span>
-          </td>
+  <div class="glass rounded-3xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="border-b border-border">
+        <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <th class="px-5 py-3 text-left">Lote</th>
+          <th class="px-5 py-3 text-left">Manzana</th>
+          <th class="px-5 py-3 text-left">Medidas</th>
+          <th class="px-5 py-3 text-left">Calle</th>
+          <th class="px-5 py-3 text-left">Precio lista</th>
+          <th class="px-5 py-3 text-left">Estado</th>
         </tr>
-      ))}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {filtered.map((l) => (
+          <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
+            <td class="px-5 py-3 font-mono font-semibold"><a href={`/lotes/${l.loteId}`} class="hover:text-primary">{l.loteId}</a></td>
+            <td class="px-5 py-3">{l.manzana}</td>
+            <td class="px-5 py-3">{l.frente}×{l.fondo} m</td>
+            <td class="px-5 py-3">{l.calle || "—"}</td>
+            <td class="px-5 py-3">{l.precioLista ? pesos(l.precioLista) : "—"}</td>
+            <td class="px-5 py-3">
+              <span class={`rounded-lg px-2 py-1 font-mono text-[10px] font-semibold uppercase ring-1 ${ESTILO[l.estado].chip} ${ESTILO[l.estado].texto}`}>{l.estado}</span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </Base>

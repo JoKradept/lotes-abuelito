@@ -4,23 +4,30 @@ import { loadClientes } from "../../lib/domain";
 const clientes = await loadClientes();
 ---
 <Base title="Clientes">
-  <div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">Clientes ({clientes.length})</h1>
-    <a href="/clientes/nuevo" class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-sm">+ Nuevo</a>
+  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-3xl font-extrabold tracking-tight">Clientes ({clientes.length})</h1>
+    <a href="/clientes/nuevo" class="h-11 rounded-2xl bg-primary px-4 grid place-items-center text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">+ Nuevo cliente</a>
   </div>
-  <table class="w-full text-sm">
-    <thead class="bg-neutral-900 text-left">
-      <tr><th class="p-2">ID</th><th class="p-2">Nombre</th><th class="p-2">Teléfono</th><th class="p-2">Dirección</th></tr>
-    </thead>
-    <tbody>
-      {clientes.map((c) => (
-        <tr class="border-b border-neutral-800 hover:bg-neutral-900">
-          <td class="p-2 font-mono">{c.clienteId}</td>
-          <td class="p-2">{c.nombre}</td>
-          <td class="p-2">{c.telefono || "—"}</td>
-          <td class="p-2">{c.direccion || "—"}</td>
+  <div class="glass rounded-3xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="border-b border-border">
+        <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <th class="px-5 py-3 text-left">ID</th>
+          <th class="px-5 py-3 text-left">Nombre</th>
+          <th class="px-5 py-3 text-left">Teléfono</th>
+          <th class="px-5 py-3 text-left">Dirección</th>
         </tr>
-      ))}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {clientes.map((c) => (
+          <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
+            <td class="px-5 py-3 font-mono">{c.clienteId}</td>
+            <td class="px-5 py-3 font-semibold">{c.nombre}</td>
+            <td class="px-5 py-3 font-mono text-xs">{c.telefono || "—"}</td>
+            <td class="px-5 py-3 text-xs">{c.direccion || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </Base>

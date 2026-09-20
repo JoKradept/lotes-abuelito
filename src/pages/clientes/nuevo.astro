@@ -5,25 +5,25 @@ const result = Astro.getActionResult(actions.crearCliente);
 if (result && !result.error) return Astro.redirect(`/clientes?nuevo=${result.data.clienteId}`);
 ---
 <Base title="Nuevo cliente">
-  <form method="POST" action={actions.crearCliente} class="max-w-md space-y-4">
-    <h1 class="text-2xl font-bold">Nuevo cliente</h1>
+  <form method="POST" action={actions.crearCliente} class="glass mx-auto max-w-md rounded-3xl p-6 space-y-4">
+    <h1 class="text-2xl font-extrabold tracking-tight">Nuevo cliente</h1>
     <label class="block">
-      <span class="text-sm opacity-70">Nombre</span>
-      <input name="nombre" required class="w-full mt-1 p-2 bg-neutral-800 rounded" autofocus />
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Nombre</span>
+      <input name="nombre" required class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" autofocus />
     </label>
     <label class="block">
-      <span class="text-sm opacity-70">Teléfono</span>
-      <input name="telefono" type="tel" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Teléfono</span>
+      <input name="telefono" type="tel" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
     </label>
     <label class="block">
-      <span class="text-sm opacity-70">Dirección</span>
-      <input name="direccion" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Dirección</span>
+      <input name="direccion" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
     </label>
     <label class="block">
-      <span class="text-sm opacity-70">Notas</span>
-      <textarea name="notas" rows="2" class="w-full mt-1 p-2 bg-neutral-800 rounded"></textarea>
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Notas</span>
+      <textarea name="notas" rows="2" class="glass-soft w-full mt-1 rounded-2xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"></textarea>
     </label>
-    {result?.error && <p class="text-red-400">{result.error.message}</p>}
-    <button type="submit" class="w-full py-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Guardar</button>
+    {result?.error && <p class="text-destructive text-sm">{result.error.message}</p>}
+    <button type="submit" class="w-full h-11 rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Guardar</button>
   </form>
 </Base>

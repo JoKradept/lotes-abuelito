@@ -1,37 +1,45 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { loadVentas, loadClientes, loadAbonos, saldoVenta } from "../../lib/domain";
+import { pesos } from "../../lib/format";
 const [ventas, clientes, abonos] = await Promise.all([loadVentas(), loadClientes(), loadAbonos()]);
 const clienteMap = new Map(clientes.map((c) => [c.clienteId, c]));
 const rows = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha));
 ---
 <Base title="Ventas">
-  <h1 class="text-2xl font-bold mb-4">Ventas ({rows.length})</h1>
+  <h1 class="text-3xl font-extrabold tracking-tight mb-4">Ventas ({rows.length})</h1>
   {rows.length === 0 ? (
-    <p class="text-neutral-500">Aún no hay ventas registradas.</p>
+    <div class="glass rounded-3xl p-10 text-center text-muted-foreground">Aún no hay ventas registradas.</div>
   ) : (
-    <table class="w-full text-sm">
-      <thead class="bg-neutral-900 text-left">
-        <tr><th class="p-2">ID</th><th class="p-2">Lote</th><th class="p-2">Cliente</th><th class="p-2">Fecha</th><th class="p-2">Precio</th><th class="p-2">Saldo</th></tr>
-      </thead>
-      <tbody>
-        {rows.map((v) => {
-          const c = clienteMap.get(v.clienteId);
-          const saldo = saldoVenta(v, abonos);
-          return (
-            <tr class="border-b border-neutral-800 hover:bg-neutral-900">
-              <td class="p-2 font-mono">{v.ventaId}</td>
-              <td class="p-2 font-mono"><a href={`/lotes/${v.loteId}`} class="hover:underline">{v.loteId}</a></td>
-              <td class="p-2">{c?.nombre ?? v.clienteId}</td>
-              <td class="p-2">{v.fecha}</td>
-              <td class="p-2">${v.precioFinal.toLocaleString("es-MX")}</td>
-              <td class={`p-2 font-semibold ${saldo <= 0 ? "text-emerald-400" : "text-orange-400"}`}>
-                ${saldo.toLocaleString("es-MX")}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div class="glass rounded-3xl overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="border-b border-border">
+          <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            <th class="px-5 py-3 text-left">ID</th>
+            <th class="px-5 py-3 text-left">Lote</th>
+            <th class="px-5 py-3 text-left">Cliente</th>
+            <th class="px-5 py-3 text-left">Fecha</th>
+            <th class="px-5 py-3 text-left">Precio</th>
+            <th class="px-5 py-3 text-left">Saldo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((v) => {
+            const c = clienteMap.get(v.clienteId);
+            const saldo = saldoVenta(v, abonos);
+            return (
+              <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
+                <td class="px-5 py-3 font-mono">{v.ventaId}</td>
+                <td class="px-5 py-3 font-mono font-semibold"><a href={`/lotes/${v.loteId}`} class="hover:text-primary">{v.loteId}</a></td>
+                <td class="px-5 py-3">{c?.nombre ?? v.clienteId}</td>
+                <td class="px-5 py-3 font-mono text-xs">{v.fecha}</td>
+                <td class="px-5 py-3 font-mono">{pesos(v.precioFinal)}</td>
+                <td class={`px-5 py-3 font-mono font-semibold ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(saldo)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   )}
 </Base>

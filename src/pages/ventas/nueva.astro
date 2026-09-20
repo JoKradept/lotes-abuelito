@@ -9,12 +9,12 @@ const result = Astro.getActionResult(actions.crearVenta);
 if (result && !result.error) return Astro.redirect(`/lotes/${result.data.loteId ?? loteSel}`);
 ---
 <Base title="Nueva venta">
-  <form method="POST" action={actions.crearVenta} class="max-w-md space-y-4">
-    <h1 class="text-2xl font-bold">Registrar venta</h1>
+  <form method="POST" action={actions.crearVenta} class="glass mx-auto max-w-md rounded-3xl p-6 space-y-4">
+    <h1 class="text-2xl font-extrabold tracking-tight">Registrar venta</h1>
 
     <label class="block">
-      <span class="text-sm opacity-70">Lote</span>
-      <select name="loteId" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Lote</span>
+      <select name="loteId" required class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
         {disponibles.map((l) => (
           <option value={l.loteId} selected={l.loteId === loteSel}>
             {l.loteId} — {l.frente}×{l.fondo}m — {l.estado}
@@ -24,37 +24,37 @@ if (result && !result.error) return Astro.redirect(`/lotes/${result.data.loteId 
     </label>
 
     <label class="block">
-      <span class="text-sm opacity-70">Cliente</span>
-      <select name="clienteId" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Cliente</span>
+      <select name="clienteId" required class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
         {clientes.map((c) => (
           <option value={c.clienteId}>{c.clienteId} — {c.nombre}</option>
         ))}
       </select>
-      <a href="/clientes/nuevo" class="text-xs text-blue-400 hover:underline">+ Nuevo cliente</a>
+      <a href="/clientes/nuevo" class="mt-1 inline-block font-mono text-[11px] text-accent hover:underline">+ Nuevo cliente</a>
     </label>
 
     <label class="block">
-      <span class="text-sm opacity-70">Fecha</span>
-      <input type="date" name="fecha" required value={new Date().toISOString().slice(0, 10)} class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Fecha</span>
+      <input type="date" name="fecha" required value={new Date().toISOString().slice(0, 10)} class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
     </label>
+
+    <div class="grid grid-cols-2 gap-3">
+      <label class="block">
+        <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Precio final</span>
+        <input type="number" name="precioFinal" required min="0" step="1" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+      </label>
+      <label class="block">
+        <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Enganche</span>
+        <input type="number" name="enganche" min="0" step="1" value="0" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+      </label>
+    </div>
 
     <label class="block">
-      <span class="text-sm opacity-70">Precio final</span>
-      <input type="number" name="precioFinal" required min="0" step="1" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+      <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Notas</span>
+      <textarea name="notas" rows="2" class="glass-soft w-full mt-1 rounded-2xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"></textarea>
     </label>
 
-    <label class="block">
-      <span class="text-sm opacity-70">Enganche</span>
-      <input type="number" name="enganche" min="0" step="1" value="0" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
-    </label>
-
-    <label class="block">
-      <span class="text-sm opacity-70">Notas</span>
-      <textarea name="notas" rows="2" class="w-full mt-1 p-2 bg-neutral-800 rounded"></textarea>
-    </label>
-
-    {result?.error && <p class="text-red-400">{result.error.message}</p>}
-
-    <button type="submit" class="w-full py-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Guardar venta</button>
+    {result?.error && <p class="text-destructive text-sm">{result.error.message}</p>}
+    <button type="submit" class="w-full h-11 rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Guardar venta</button>
   </form>
 </Base>

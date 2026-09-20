@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import { loadVentas, loadClientes, loadAbonos, saldoVenta } from "../../lib/domain";
 import { actions } from "astro:actions";
+import { pesos } from "../../lib/format";
 const [ventas, clientes, abonos] = await Promise.all([loadVentas(), loadClientes(), loadAbonos()]);
 const clienteMap = new Map(clientes.map((c) => [c.clienteId, c.nombre]));
 const activas = ventas
@@ -15,47 +16,48 @@ if (result && !result.error) {
 }
 ---
 <Base title="Nuevo abono">
-  <form method="POST" action={actions.crearAbono} class="max-w-md space-y-4">
-    <h1 class="text-2xl font-bold">Registrar abono</h1>
+  <form method="POST" action={actions.crearAbono} class="glass mx-auto max-w-md rounded-3xl p-6 space-y-4">
+    <h1 class="text-2xl font-extrabold tracking-tight">Registrar abono</h1>
     {activas.length === 0 ? (
-      <p class="text-neutral-400">No hay ventas con saldo pendiente.</p>
+      <p class="text-muted-foreground">No hay ventas con saldo pendiente.</p>
     ) : (
       <>
         <label class="block">
-          <span class="text-sm opacity-70">Venta</span>
-          <select name="ventaId" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
+          <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Venta</span>
+          <select name="ventaId" required class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
             {activas.map(({ v, saldo }) => (
               <option value={v.ventaId} selected={v.ventaId === ventaSel}>
-                {clienteMap.get(v.clienteId) ?? v.clienteId} · Lote {v.loteId} · saldo ${saldo.toLocaleString("es-MX")}
+                {clienteMap.get(v.clienteId) ?? v.clienteId} · Lote {v.loteId} · saldo {pesos(saldo)}
               </option>
             ))}
           </select>
         </label>
 
         <label class="block">
-          <span class="text-sm opacity-70">Fecha</span>
-          <input type="date" name="fecha" required value={new Date().toISOString().slice(0, 10)} class="w-full mt-1 p-2 bg-neutral-800 rounded" />
+          <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Fecha</span>
+          <input type="date" name="fecha" required value={new Date().toISOString().slice(0, 10)} class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </label>
+
+        <div class="grid grid-cols-2 gap-3">
+          <label class="block">
+            <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Monto</span>
+            <input type="number" name="monto" required min="1" step="1" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" autofocus />
+          </label>
+          <label class="block">
+            <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Método</span>
+            <select name="metodo" required class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+              <option>Efectivo</option><option>Transferencia</option><option>Cheque</option><option>Otro</option>
+            </select>
+          </label>
+        </div>
 
         <label class="block">
-          <span class="text-sm opacity-70">Monto</span>
-          <input type="number" name="monto" required min="1" step="1" class="w-full mt-1 p-2 bg-neutral-800 rounded" autofocus />
+          <span class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Nota</span>
+          <input name="nota" class="glass-soft w-full mt-1 h-11 rounded-2xl px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
         </label>
 
-        <label class="block">
-          <span class="text-sm opacity-70">Método</span>
-          <select name="metodo" required class="w-full mt-1 p-2 bg-neutral-800 rounded">
-            <option>Efectivo</option><option>Transferencia</option><option>Cheque</option><option>Otro</option>
-          </select>
-        </label>
-
-        <label class="block">
-          <span class="text-sm opacity-70">Nota</span>
-          <input name="nota" class="w-full mt-1 p-2 bg-neutral-800 rounded" />
-        </label>
-
-        {result?.error && <p class="text-red-400">{result.error.message}</p>}
-        <button type="submit" class="w-full py-3 rounded bg-emerald-600 hover:bg-emerald-500 font-semibold">Guardar abono</button>
+        {result?.error && <p class="text-destructive text-sm">{result.error.message}</p>}
+        <button type="submit" class="w-full h-11 rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Guardar abono</button>
       </>
     )}
   </form>

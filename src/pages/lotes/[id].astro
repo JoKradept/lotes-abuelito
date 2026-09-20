@@ -1,6 +1,8 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { loadLotes, loadVentas, loadClientes, loadAbonos, saldoVenta } from "../../lib/domain";
+import { pesos } from "../../lib/format";
+
 const { id } = Astro.params;
 const [lotes, ventas, clientes, abonos] = await Promise.all([
   loadLotes(), loadVentas(), loadClientes(), loadAbonos(),
@@ -13,81 +15,113 @@ const abonosVenta = venta
   ? abonos.filter((a) => a.ventaId === venta.ventaId).sort((a, b) => b.fecha.localeCompare(a.fecha))
   : [];
 const saldo = venta ? saldoVenta(venta, abonos) : 0;
+const abonado = venta ? venta.enganche + abonosVenta.filter(a => !a.cancelado).reduce((s, a) => s + a.monto, 0) : 0;
+const total = venta ? (venta.precioFinal || lote.precioLista || 1) : 1;
+
+const ESTILO = {
+  Disponible: { chip: "bg-disponible-soft ring-disponible/25", texto: "text-disponible" },
+  Apartado:   { chip: "bg-apartado-soft ring-apartado/30",     texto: "text-apartado" },
+  Vendido:    { chip: "bg-vendido-soft ring-vendido/25",       texto: "text-vendido" },
+  Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado" },
+};
 ---
 <Base title={`Lote ${lote.loteId}`}>
-  <div class="max-w-3xl space-y-6">
-    <div class="flex items-baseline gap-4">
-      <h1 class="text-3xl font-bold font-mono">{lote.loteId}</h1>
-      <span class={`px-3 py-1 rounded ${
-        lote.estado === "Disponible" ? "bg-blue-500/30" :
-        lote.estado === "Apartado" ? "bg-yellow-500/30" :
-        lote.estado === "Vendido" ? "bg-slate-500/30" : "bg-emerald-500/30"
-      }`}>{lote.estado}</span>
+  <a href="/" class="glass-soft mb-4 inline-flex h-9 items-center gap-2 rounded-xl px-3 font-mono text-xs text-muted-foreground hover:text-foreground">← Regresar al plano</a>
+
+  <div class="grid gap-6 lg:grid-cols-12">
+    <div class="rise lg:col-span-7 glass overflow-hidden rounded-3xl">
+      <div class="flex items-start justify-between gap-3 border-b border-border px-6 pb-5 pt-6">
+        <div>
+          <p class="mb-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Ficha de lote</p>
+          <h1 class="text-4xl font-extrabold tracking-tight">Lote {lote.loteId}</h1>
+          <p class="mt-1 font-mono text-sm text-muted-foreground">
+            Manzana {lote.manzana} · {lote.calle || "sin calle"}{lote.esquina ? " · esquina" : ""}
+          </p>
+        </div>
+        <span class={`rounded-xl px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-wider ring-1 ${ESTILO[lote.estado].chip} ${ESTILO[lote.estado].texto}`}>{lote.estado}</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-px bg-border">
+        {[
+          ["Superficie", `${(lote.frente * lote.fondo).toFixed(2)} m²`],
+          ["Frente × fondo", `${lote.frente} × ${lote.fondo}`],
+          ["Precio lista", lote.precioLista ? pesos(lote.precioLista) : "—"],
+          ["Precio final", venta?.precioFinal ? pesos(venta.precioFinal) : "—"],
+          ["Cliente", cliente?.nombre ?? "Sin asignar"],
+          ["Enganche", venta?.enganche ? pesos(venta.enganche) : "—"],
+        ].map(([k, v]) => (
+          <div class="bg-card px-6 py-4">
+            <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{k}</p>
+            <p class="mt-1 font-mono text-sm font-semibold">{v}</p>
+          </div>
+        ))}
+      </div>
+
+      {venta ? (
+        <>
+          <div class="flex items-center justify-between border-t border-border px-6 py-5">
+            <p class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Saldo pendiente</p>
+            <p class={`font-mono text-3xl font-semibold tracking-tight ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(saldo)}</p>
+          </div>
+          <div class="px-6 pb-6">
+            <div class="h-2 overflow-hidden rounded-full bg-border">
+              <div class="h-full bg-disponible" style={`width: ${Math.min(100, (abonado / total) * 100).toFixed(0)}%`}></div>
+            </div>
+            <p class="mt-2 font-mono text-[11px] text-muted-foreground">
+              Abonado {pesos(abonado)} de {pesos(total)} (incluye enganche)
+            </p>
+          </div>
+        </>
+      ) : (
+        <div class="border-t border-border px-6 py-5 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-muted-foreground">Lote libre. Sin venta ni abonos.</p>
+          {lote.estado === "Disponible" && (
+            <a href={`/ventas/nueva?loteId=${lote.loteId}`} class="h-11 rounded-2xl bg-primary px-4 grid place-items-center text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Registrar venta</a>
+          )}
+        </div>
+      )}
+
+      {lote.notas && (
+        <div class="border-t border-border px-6 py-5">
+          <p class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Notas</p>
+          <p class="text-sm">{lote.notas}</p>
+        </div>
+      )}
     </div>
 
-    <dl class="grid grid-cols-2 gap-3 text-sm bg-neutral-900 p-4 rounded">
-      <div><dt class="opacity-60">Manzana</dt><dd class="text-lg">{lote.manzana}</dd></div>
-      <div><dt class="opacity-60">Número global</dt><dd class="text-lg">{lote.numero}</dd></div>
-      <div><dt class="opacity-60">Medidas</dt><dd class="text-lg">{lote.frente}×{lote.fondo} m ({lote.frente * lote.fondo} m²)</dd></div>
-      <div><dt class="opacity-60">Calle</dt><dd class="text-lg">{lote.calle || "—"}</dd></div>
-      <div><dt class="opacity-60">Precio lista</dt><dd class="text-lg">{lote.precioLista ? `$${lote.precioLista.toLocaleString("es-MX")}` : "—"}</dd></div>
-      <div><dt class="opacity-60">Esquina</dt><dd class="text-lg">{lote.esquina ? "Sí" : "No"}</dd></div>
-    </dl>
-
-    {venta && cliente && (
-      <section class="space-y-3">
-        <h2 class="text-xl font-bold">Venta {venta.ventaId}</h2>
-        <dl class="grid grid-cols-2 gap-3 text-sm bg-neutral-900 p-4 rounded">
-          <div><dt class="opacity-60">Cliente</dt><dd class="text-lg">{cliente.nombre}</dd></div>
-          <div><dt class="opacity-60">Teléfono</dt><dd class="text-lg">{cliente.telefono || "—"}</dd></div>
-          <div><dt class="opacity-60">Fecha</dt><dd class="text-lg">{venta.fecha}</dd></div>
-          <div><dt class="opacity-60">Precio final</dt><dd class="text-lg">${venta.precioFinal.toLocaleString("es-MX")}</dd></div>
-          <div><dt class="opacity-60">Enganche</dt><dd class="text-lg">${venta.enganche.toLocaleString("es-MX")}</dd></div>
-          <div><dt class="opacity-60">Saldo</dt>
-            <dd class={`text-2xl font-bold ${saldo <= 0 ? "text-emerald-400" : "text-orange-400"}`}>
-              ${saldo.toLocaleString("es-MX")}
-            </dd>
+    <aside class="rise lg:col-span-5 space-y-6" style="animation-delay: 100ms">
+      {venta && (
+        <div class="glass rounded-3xl p-5">
+          <div class="mb-3 flex items-center justify-between">
+            <p class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Abonos ({abonosVenta.length})</p>
+            <a href={`/abonos/nuevo?ventaId=${venta.ventaId}`} class="h-8 rounded-xl bg-primary px-3 grid place-items-center text-xs font-bold text-primary-foreground shadow-lg shadow-primary/30">+ Registrar</a>
           </div>
-        </dl>
-
-        <div class="flex justify-between items-center">
-          <h3 class="text-lg font-bold">Abonos ({abonosVenta.length})</h3>
-          <a href={`/abonos/nuevo?ventaId=${venta.ventaId}`} class="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-sm">+ Registrar abono</a>
-        </div>
-        {abonosVenta.length === 0 ? (
-          <p class="text-neutral-500 text-sm">Sin abonos aún.</p>
-        ) : (
-          <table class="w-full text-sm">
-            <thead class="bg-neutral-900 text-left">
-              <tr><th class="p-2">ID</th><th class="p-2">Fecha</th><th class="p-2">Monto</th><th class="p-2">Método</th><th class="p-2">Nota</th></tr>
-            </thead>
-            <tbody>
+          {abonosVenta.length === 0 ? (
+            <p class="py-8 text-center text-sm text-muted-foreground">Sin abonos aún.</p>
+          ) : (
+            <ul class="divide-y divide-border">
               {abonosVenta.map((a) => (
-                <tr class={`border-b border-neutral-800 ${a.cancelado ? "line-through opacity-50" : ""}`}>
-                  <td class="p-2 font-mono">{a.abonoId}</td>
-                  <td class="p-2">{a.fecha}</td>
-                  <td class="p-2">${a.monto.toLocaleString("es-MX")}</td>
-                  <td class="p-2">{a.metodo}</td>
-                  <td class="p-2">{a.nota}</td>
-                </tr>
+                <li class={`flex items-center justify-between py-3 font-mono text-xs ${a.cancelado ? "line-through opacity-50" : ""}`}>
+                  <div>
+                    <p class="text-foreground font-semibold">{a.fecha}</p>
+                    <p class="text-muted-foreground">{a.abonoId} · {a.metodo}{a.nota ? ` · ${a.nota}` : ""}</p>
+                  </div>
+                  <span class="text-sm font-semibold">{pesos(a.monto)}</span>
+                </li>
               ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    )}
+            </ul>
+          )}
+        </div>
+      )}
 
-    {!venta && lote.estado === "Disponible" && (
-      <a href={`/ventas/nueva?loteId=${lote.loteId}`} class="inline-block px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500">
-        Registrar venta
-      </a>
-    )}
-
-    {lote.notas && (
-      <div class="bg-neutral-900 p-4 rounded text-sm">
-        <dt class="opacity-60 mb-1">Notas</dt>
-        <dd>{lote.notas}</dd>
-      </div>
-    )}
+      {cliente && (
+        <div class="glass rounded-3xl p-5">
+          <p class="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Cliente</p>
+          <p class="text-lg font-semibold">{cliente.nombre}</p>
+          {cliente.telefono && <p class="mt-1 font-mono text-sm text-muted-foreground">📞 {cliente.telefono}</p>}
+          {cliente.direccion && <p class="font-mono text-sm text-muted-foreground">🏠 {cliente.direccion}</p>}
+        </div>
+      )}
+    </aside>
   </div>
 </Base>
