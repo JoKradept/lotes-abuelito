@@ -7,9 +7,16 @@ if (!SHEET_ID) throw new Error("SHEET_ID env var required");
 const inline = import.meta.env.GOOGLE_CREDENTIALS_JSON ?? process.env.GOOGLE_CREDENTIALS_JSON;
 const filePath = import.meta.env.GOOGLE_APPLICATION_CREDENTIALS ?? process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
+function parseCreds(v: string) {
+  const t = v.trim();
+  try { return JSON.parse(t); } catch {}
+  try { return JSON.parse(Buffer.from(t, "base64").toString("utf-8")); } catch {}
+  throw new Error("GOOGLE_CREDENTIALS_JSON no es JSON válido ni base64 de JSON");
+}
+
 const auth = inline
   ? new google.auth.GoogleAuth({
-      credentials: JSON.parse(inline.trim().startsWith("{") ? inline : Buffer.from(inline, "base64").toString("utf-8")),
+      credentials: parseCreds(inline),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     })
   : new google.auth.GoogleAuth({
