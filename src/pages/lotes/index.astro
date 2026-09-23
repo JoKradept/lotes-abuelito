@@ -1,8 +1,12 @@
 ---
 import Base from "../../layouts/Base.astro";
-import { loadLotes } from "../../lib/domain";
+import { loadLotes, loadVentas, loadClientes, loadAbonos } from "../../lib/domain";
+import { saldoVenta, proximoAbono } from "../../lib/venta-utils";
 import { pesos } from "../../lib/format";
-const lotes = await loadLotes();
+const [lotes, ventas, clientes, abonos] = await Promise.all([loadLotes(), loadVentas(), loadClientes(), loadAbonos()]);
+const ventaPorLote = new Map(ventas.map((v) => [v.loteId, v]));
+const clienteMap = new Map(clientes.map((c) => [c.clienteId, c]));
+
 const filtroEstado = Astro.url.searchParams.get("estado");
 const filtroManzana = Astro.url.searchParams.get("manzana");
 let filtered = lotes;
@@ -17,6 +21,7 @@ const ESTILO = {
   Vendido:    { chip: "bg-vendido-soft ring-vendido/25",       texto: "text-vendido" },
   Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado" },
 };
+const hoyMs = Date.now();
 ---
 <Base title="Lotes">
   <h1 class="text-3xl font-extrabold tracking-tight mb-4">Lotes ({lotes.length})</h1>
@@ -40,27 +45,44 @@ const ESTILO = {
     <table class="w-full text-sm">
       <thead class="border-b border-border">
         <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-          <th class="px-5 py-3 text-left">Lote</th>
-          <th class="px-5 py-3 text-left">Manzana</th>
-          <th class="px-5 py-3 text-left">Medidas</th>
-          <th class="px-5 py-3 text-left">Calle</th>
-          <th class="px-5 py-3 text-left">Precio lista</th>
-          <th class="px-5 py-3 text-left">Estado</th>
+          <th class="px-4 py-3 text-left">Lote</th>
+          <th class="px-4 py-3 text-left">Manzana</th>
+          <th class="px-4 py-3 text-left">Medidas</th>
+          <th class="px-4 py-3 text-left">Precio lista</th>
+          <th class="px-4 py-3 text-left">Estado</th>
+          <th class="px-4 py-3 text-left">Cliente</th>
+          <th class="px-4 py-3 text-right">Saldo</th>
+          <th class="px-4 py-3 text-left">Próximo</th>
         </tr>
       </thead>
       <tbody>
-        {filtered.map((l) => (
-          <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
-            <td class="px-5 py-3 font-mono font-semibold"><a href={`/lotes/${l.loteId}`} class="hover:text-primary">{l.loteId}</a></td>
-            <td class="px-5 py-3">{l.manzana}</td>
-            <td class="px-5 py-3">{l.frente}×{l.fondo} m</td>
-            <td class="px-5 py-3">{l.calle || "—"}</td>
-            <td class="px-5 py-3">{l.precioLista ? pesos(l.precioLista) : "—"}</td>
-            <td class="px-5 py-3">
-              <span class={`rounded-lg px-2 py-1 font-mono text-[10px] font-semibold uppercase ring-1 ${ESTILO[l.estado].chip} ${ESTILO[l.estado].texto}`}>{l.estado}</span>
-            </td>
-          </tr>
-        ))}
+        {filtered.map((l) => {
+          const v = ventaPorLote.get(l.loteId);
+          const c = v ? clienteMap.get(v.clienteId) : null;
+          const saldo = v ? saldoVenta(v, abonos) : 0;
+          const prox = v && (l.estado === "Vendido" || l.estado === "Apartado") && saldo > 0 ? proximoAbono(v, abonos) : null;
+          const atraso = prox ? Math.floor((hoyMs - prox.getTime()) / 86_400_000) : 0;
+          return (
+            <tr class="border-b border-border/50 last:border-0 hover:bg-white/40 cursor-pointer" onclick={`location.href='/?lote=${l.loteId}'`}>
+              <td class="px-4 py-3 font-mono font-semibold">{l.loteId}</td>
+              <td class="px-4 py-3">{l.manzana}</td>
+              <td class="px-4 py-3">{l.frente}×{l.fondo}</td>
+              <td class="px-4 py-3 font-mono">{l.precioLista ? pesos(l.precioLista) : "—"}</td>
+              <td class="px-4 py-3">
+                <span class={`rounded-lg px-2 py-1 font-mono text-[10px] font-semibold uppercase ring-1 ${ESTILO[l.estado].chip} ${ESTILO[l.estado].texto}`}>{l.estado}</span>
+              </td>
+              <td class="px-4 py-3 truncate max-w-[160px]">{c?.nombre ?? "—"}</td>
+              <td class={`px-4 py-3 text-right font-mono font-semibold ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{v ? pesos(saldo) : "—"}</td>
+              <td class="px-4 py-3 font-mono text-xs">
+                {prox ? (
+                  <span class={atraso > 0 ? "text-apartado font-bold" : "text-muted-foreground"}>
+                    {prox.toISOString().slice(0, 10)}{atraso > 0 ? ` (${atraso}d)` : ""}
+                  </span>
+                ) : "—"}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>

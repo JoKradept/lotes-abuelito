@@ -2,12 +2,13 @@
 import "../styles/globals.css";
 const { title = "Lotificación — Cumbres de Tiripetío" } = Astro.props;
 const path = Astro.url.pathname;
-const nav = [
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${import.meta.env.SHEET_ID}/edit`;
+const nav: [string, string, boolean?][] = [
   ["/", "Plano"],
   ["/lotes", "Lotes"],
   ["/ventas", "Ventas"],
   ["/clientes", "Clientes"],
-  ["/abonos/nuevo", "+ Abono"],
+  [SHEET_URL, "Sheet ↗", true],
 ];
 ---
 <html lang="es">
@@ -38,8 +39,8 @@ const nav = [
         </div>
       </div>
       <nav class="flex flex-wrap items-center gap-1.5 font-mono text-xs font-semibold">
-        {nav.map(([href, label]) => (
-          <a href={href} class={`h-9 rounded-xl px-3 grid place-items-center transition ${path === href ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>{label}</a>
+        {nav.map(([href, label, external]) => (
+          <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener" : undefined} class={`h-9 rounded-xl px-3 grid place-items-center transition ${path === href ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "glass-soft text-muted-foreground hover:text-foreground"}`}>{label}</a>
         ))}
       </nav>
     </div>

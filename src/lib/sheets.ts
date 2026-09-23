@@ -45,7 +45,7 @@ export async function agregarFila(hoja: string, fila: (string | number)[]) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: `${hoja}!A1`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [fila] },
   });
@@ -57,7 +57,7 @@ export async function escribirRango(rango: string, valores: (string | number)[][
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
     range: rango,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: { values: valores },
   });
 }

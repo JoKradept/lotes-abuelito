@@ -49,6 +49,7 @@ const ESTILO = {
           ["Precio final", venta?.precioFinal ? pesos(venta.precioFinal) : "—"],
           ["Cliente", cliente?.nombre ?? "Sin asignar"],
           ["Enganche", venta?.enganche ? pesos(venta.enganche) : "—"],
+          ["Frecuencia de pago", venta?.frecuenciaPago || "—"],
         ].map(([k, v]) => (
           <div class="bg-card px-6 py-4">
             <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{k}</p>

@@ -1,10 +1,13 @@
 ---
 import Base from "../../layouts/Base.astro";
-import { loadVentas, loadClientes, loadAbonos, saldoVenta } from "../../lib/domain";
+import { loadVentas, loadClientes, loadAbonos, loadLotes } from "../../lib/domain";
+import { saldoVenta, proximoAbono } from "../../lib/venta-utils";
 import { pesos } from "../../lib/format";
-const [ventas, clientes, abonos] = await Promise.all([loadVentas(), loadClientes(), loadAbonos()]);
+const [ventas, clientes, abonos, lotes] = await Promise.all([loadVentas(), loadClientes(), loadAbonos(), loadLotes()]);
 const clienteMap = new Map(clientes.map((c) => [c.clienteId, c]));
+const loteEstado = new Map(lotes.map((l) => [l.loteId, l.estado]));
 const rows = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha));
+const hoyMs = Date.now();
 ---
 <Base title="Ventas">
   <h1 class="text-3xl font-extrabold tracking-tight mb-4">Ventas ({rows.length})</h1>
@@ -15,26 +18,45 @@ const rows = [...ventas].sort((a, b) => b.fecha.localeCompare(a.fecha));
       <table class="w-full text-sm">
         <thead class="border-b border-border">
           <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-            <th class="px-5 py-3 text-left">ID</th>
-            <th class="px-5 py-3 text-left">Lote</th>
-            <th class="px-5 py-3 text-left">Cliente</th>
-            <th class="px-5 py-3 text-left">Fecha</th>
-            <th class="px-5 py-3 text-left">Precio</th>
-            <th class="px-5 py-3 text-left">Saldo</th>
+            <th class="px-4 py-3 text-left">ID</th>
+            <th class="px-4 py-3 text-left">Lote</th>
+            <th class="px-4 py-3 text-left">Cliente</th>
+            <th class="px-4 py-3 text-left">Teléfono</th>
+            <th class="px-4 py-3 text-left">Fecha</th>
+            <th class="px-4 py-3 text-right">Precio</th>
+            <th class="px-4 py-3 text-right">Enganche</th>
+            <th class="px-4 py-3 text-right">Cuota</th>
+            <th class="px-4 py-3 text-right">Saldo</th>
+            <th class="px-4 py-3 text-left">Próximo pago</th>
+            <th class="px-4 py-3 text-left">Estado</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((v) => {
             const c = clienteMap.get(v.clienteId);
             const saldo = saldoVenta(v, abonos);
+            const estado = loteEstado.get(v.loteId) ?? "?";
+            const prox = (estado === "Vendido" || estado === "Apartado") && saldo > 0 ? proximoAbono(v, abonos) : null;
+            const atraso = prox ? Math.floor((hoyMs - prox.getTime()) / 86_400_000) : 0;
             return (
-              <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
-                <td class="px-5 py-3 font-mono">{v.ventaId}</td>
-                <td class="px-5 py-3 font-mono font-semibold"><a href={`/lotes/${v.loteId}`} class="hover:text-primary">{v.loteId}</a></td>
-                <td class="px-5 py-3">{c?.nombre ?? v.clienteId}</td>
-                <td class="px-5 py-3 font-mono text-xs">{v.fecha}</td>
-                <td class="px-5 py-3 font-mono">{pesos(v.precioFinal)}</td>
-                <td class={`px-5 py-3 font-mono font-semibold ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(saldo)}</td>
+              <tr class="border-b border-border/50 last:border-0 hover:bg-white/40 cursor-pointer" onclick={`location.href='/?lote=${v.loteId}'`}>
+                <td class="px-4 py-3 font-mono">{v.ventaId}</td>
+                <td class="px-4 py-3 font-mono font-semibold">{v.loteId}</td>
+                <td class="px-4 py-3 truncate max-w-[140px]">{c?.nombre ?? v.clienteId}</td>
+                <td class="px-4 py-3 font-mono text-xs">{c?.telefono || "—"}</td>
+                <td class="px-4 py-3 font-mono text-xs">{v.fecha}</td>
+                <td class="px-4 py-3 font-mono text-right">{pesos(v.precioFinal)}</td>
+                <td class="px-4 py-3 font-mono text-right">{pesos(v.enganche)}</td>
+                <td class="px-4 py-3 font-mono text-right">{v.cuotaPeriodo ? pesos(v.cuotaPeriodo) : "—"}</td>
+                <td class={`px-4 py-3 font-mono text-right font-semibold ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(saldo)}</td>
+                <td class="px-4 py-3 font-mono text-xs">
+                  {prox ? (
+                    <span class={atraso > 0 ? "text-apartado font-bold" : "text-muted-foreground"}>
+                      {prox.toISOString().slice(0, 10)}{atraso > 0 ? ` (${atraso}d)` : ""}
+                    </span>
+                  ) : "—"}
+                </td>
+                <td class="px-4 py-3 font-mono text-xs">{estado}</td>
               </tr>
             );
           })}

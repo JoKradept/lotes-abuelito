@@ -28,11 +28,17 @@ type Props = {
   lotes: Lote[];
   seleccion?: string;
   manzanaActiva?: string | null;
+  onSeleccionar?: (loteId: string) => void;
+  onManzana?: (m: string) => void;
 };
 
-export function PlanoInteractivo({ lotes, seleccion = "", manzanaActiva = null }: Props) {
-  const onSeleccionar = (loteId: string) => { window.location.href = `/lotes/${loteId}`; };
-  const onManzana = (m: string) => { window.location.href = `/?manzana=${m}`; };
+export function PlanoInteractivo({
+  lotes,
+  seleccion = "",
+  manzanaActiva = null,
+  onSeleccionar = (loteId) => { window.location.href = `/lotes/${loteId}`; },
+  onManzana = (m) => { window.location.href = `/?manzana=${m}`; },
+}: Props) {
   const [hover, setHover] = useState<{ lote: Lote; x: number; y: number } | null>(null);
   const [vista, setVista] = useState({ zoom: 1, x: 0, y: 0 });
   const contenedor = useRef<HTMLDivElement>(null);
@@ -116,19 +122,17 @@ export function PlanoInteractivo({ lotes, seleccion = "", manzanaActiva = null }
               </g>
             ))}
 
-            {/* Manzana outlines */}
+            {/* Manzana labels (sin outline) */}
             {MANZANAS_PLANO.map((m) => (
-              <g key={`m${m.manzana}`} className={manzanaActiva && manzanaActiva !== m.manzana ? "opacity-30" : ""}>
-                <path d={m.d} fill="transparent" stroke="oklch(0.51 0.22 277 / 25%)" strokeWidth={3} strokeDasharray="8 6" />
-                <text
-                  x={m.x} y={m.y}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontFamily="var(--font-mono)" fontWeight={700} fontSize={38}
-                  fill="oklch(0.51 0.22 277 / 45%)"
-                  onClick={() => onManzana(m.manzana)}
-                  style={{ cursor: "pointer" }}
-                >{m.manzana}</text>
-              </g>
+              <text key={`m${m.manzana}`}
+                x={m.x} y={m.y}
+                textAnchor="middle" dominantBaseline="middle"
+                fontFamily="var(--font-mono)" fontWeight={700} fontSize={38}
+                fill="oklch(0.51 0.22 277 / 45%)"
+                className={manzanaActiva && manzanaActiva !== m.manzana ? "opacity-30" : ""}
+                onClick={() => onManzana(m.manzana)}
+                style={{ cursor: "pointer" }}
+              >{m.manzana}</text>
             ))}
 
             {/* Lotes */}
@@ -150,8 +154,12 @@ export function PlanoInteractivo({ lotes, seleccion = "", manzanaActiva = null }
                       onSeleccionar(l.loteId);
                     }}
                     onMouseEnter={(e) => {
-                      const rect = (e.currentTarget.ownerSVGElement!.parentElement!.getBoundingClientRect());
+                      const rect = contenedor.current!.getBoundingClientRect();
                       setHover({ lote: l, x: e.clientX - rect.left, y: e.clientY - rect.top });
+                    }}
+                    onMouseMove={(e) => {
+                      const rect = contenedor.current!.getBoundingClientRect();
+                      setHover((h) => h && { ...h, x: e.clientX - rect.left, y: e.clientY - rect.top });
                     }}
                     onMouseLeave={() => setHover(null)}
                     style={{ cursor: "pointer" }}

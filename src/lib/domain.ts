@@ -25,6 +25,7 @@ export type Cliente = {
   notas: string;
 };
 
+export type FrecuenciaPago = "Semanal" | "Quincenal" | "Mensual" | "Otro" | "";
 export type Venta = {
   ventaId: string;
   loteId: string;
@@ -32,6 +33,8 @@ export type Venta = {
   fecha: string;
   precioFinal: number;
   enganche: number;
+  frecuenciaPago: FrecuenciaPago;
+  cuotaPeriodo: number;
   notas: string;
 };
 
@@ -44,7 +47,9 @@ export type Abono = {
   nota: string;
   cancelado: boolean;
   registradoEn: string;
+  avanzaFecha: boolean;
 };
+
 
 const n = (s: string) => Number(String(s ?? "").replace(/[^\d.-]/g, "")) || 0;
 const b = (s: string) => (s ?? "").toUpperCase() === "SI" || s === "TRUE" || s === "true" || s === "Yes";
@@ -78,7 +83,7 @@ export async function loadClientes(): Promise<Cliente[]> {
 }
 
 export async function loadVentas(): Promise<Venta[]> {
-  const rows = await leerRango("Ventas!A1:G500");
+  const rows = await leerRango("Ventas!A1:I500");
   return toObjects<Record<string, string>>(rows).map((v) => ({
     ventaId: v.ventaId ?? "",
     loteId: v.loteId ?? "",
@@ -86,12 +91,14 @@ export async function loadVentas(): Promise<Venta[]> {
     fecha: v.fecha ?? "",
     precioFinal: n(v.precioFinal),
     enganche: n(v.enganche),
+    frecuenciaPago: (v.frecuenciaPago as FrecuenciaPago) ?? "",
+    cuotaPeriodo: n(v.cuotaPeriodo),
     notas: v.notas ?? "",
   }));
 }
 
 export async function loadAbonos(): Promise<Abono[]> {
-  const rows = await leerRango("Abonos!A1:H5000");
+  const rows = await leerRango("Abonos!A1:I5000");
   return toObjects<Record<string, string>>(rows).map((a) => ({
     abonoId: a.abonoId ?? "",
     ventaId: a.ventaId ?? "",
@@ -101,13 +108,8 @@ export async function loadAbonos(): Promise<Abono[]> {
     nota: a.nota ?? "",
     cancelado: b(a.cancelado),
     registradoEn: a.registradoEn ?? "",
+    avanzaFecha: b(a.avanzaFecha),
   }));
 }
 
-/** Saldo de una venta = precioFinal - enganche - sum(abonos no cancelados). */
-export function saldoVenta(v: Venta, abonos: Abono[]): number {
-  const totalAbonado = abonos
-    .filter((a) => a.ventaId === v.ventaId && !a.cancelado)
-    .reduce((s, a) => s + a.monto, 0);
-  return v.precioFinal - v.enganche - totalAbonado;
-}
+export { DIAS_FRECUENCIA, proximoAbono, saldoVenta } from "./venta-utils";

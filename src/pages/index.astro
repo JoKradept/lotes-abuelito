@@ -8,5 +8,5 @@ const [lotes, ventas, abonos, clientes] = await Promise.all([
 ]);
 ---
 <Base title="Lotificación — Cumbres de Tiripetío">
-  <Dashboard client:load lotes={lotes} ventas={ventas} abonos={abonos} clientes={clientes} />
+  <Dashboard client:only="react" lotes={lotes} ventas={ventas} abonos={abonos} clientes={clientes} />
 </Base>
