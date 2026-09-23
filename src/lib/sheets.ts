@@ -2,14 +2,20 @@ import { google } from "googleapis";
 
 const SHEET_ID = import.meta.env.SHEET_ID ?? process.env.SHEET_ID;
 if (!SHEET_ID) throw new Error("SHEET_ID env var required");
-// googleapis lee GOOGLE_APPLICATION_CREDENTIALS de process.env — copiar si viene de .env
-if (import.meta.env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = import.meta.env.GOOGLE_APPLICATION_CREDENTIALS;
-}
 
-const auth = new google.auth.GoogleAuth({
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
+// Prioriza JSON inline (para Vercel/hosts sin filesystem). Fallback a path del archivo (dev local).
+const inline = import.meta.env.GOOGLE_CREDENTIALS_JSON ?? process.env.GOOGLE_CREDENTIALS_JSON;
+const filePath = import.meta.env.GOOGLE_APPLICATION_CREDENTIALS ?? process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+const auth = inline
+  ? new google.auth.GoogleAuth({
+      credentials: JSON.parse(inline.trim().startsWith("{") ? inline : Buffer.from(inline, "base64").toString("utf-8")),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    })
+  : new google.auth.GoogleAuth({
+      keyFile: filePath,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
 const sheets = google.sheets({ version: "v4", auth });
 
 /** Lee un rango A1 y devuelve filas como arrays. Cachea 30s. */

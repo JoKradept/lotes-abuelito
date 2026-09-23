@@ -6,7 +6,7 @@ Astro + React (islands) + Google Sheets como base de datos. Sin auth por ahora (
 
 ## Stack
 
-- **Astro** con `output: "server"` + adapter Node (dev/local) — cambio a Vercel para prod
+- **Astro** con `output: "server"` + adapter **Vercel** (funciona en dev y prod)
 - **React** solo para islands interactivas (mapa del plano, forms complejos)
 - **Tailwind v4**
 - **Google Sheets** via `googleapis` (Service Account)
@@ -66,6 +66,29 @@ Google Sheet `1MgWhaK2NB3fZoh60s1nVcw1VDAyNI5OkQ45jWxIi5ns` con 4 pestañas:
 - **Cache 30s** en `sheets.ts`: reduce llamadas a la API. Se limpia en cada mutación.
 - **IDs** se generan por row count (`V-` + `RIGHT("000" + n, 3)`). Race si dos crean simultáneo — aceptable para escala del proyecto.
 - **Abonos cancelados** no se borran, solo se marcan `cancelado=TRUE`. Los cálculos de saldo los excluyen.
+
+## Deploy (Vercel — recomendado, gratis)
+
+1. Push a GitHub.
+2. En [vercel.com](https://vercel.com) → **New Project → Import** el repo. Si es privado, dale acceso a la Vercel GitHub App.
+3. Configura Environment Variables:
+   - `SHEET_ID` = id del Google Sheet
+   - `GOOGLE_CREDENTIALS_JSON` = contenido completo del JSON del Service Account, en una línea. Ej:
+     ```
+     cat ~/secretos/admin-lotes/sa.json | jq -c
+     ```
+     Pega ese output como valor. También acepta base64 (`base64 -w0 sa.json`).
+4. Deploy. La primera build tarda ~1 min.
+
+### Alternativas gratis
+
+- **Netlify**: cambia `astro add netlify`, mismo `GOOGLE_CREDENTIALS_JSON` env var.
+- **Cloudflare Pages**: `astro add cloudflare`. Requiere `nodejs_compat` flag; el JSON grande cabe en env vars.
+- **Fly.io / Render**: vuelve al Node adapter y arma Dockerfile — más trabajo.
+
+### Dominio propio
+
+Vercel te da `lotes-abuelito.vercel.app` gratis. Si compras un dominio (~$10/año), lo apuntas desde el dashboard de Vercel.
 
 ## Roadmap
 

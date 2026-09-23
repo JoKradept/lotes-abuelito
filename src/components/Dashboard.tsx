@@ -270,14 +270,16 @@ export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes }: Props
         hoy={hoy} onSeleccionar={setSeleccion}
       />
 
-      <div className="fixed bottom-6 left-6 z-30 rounded-full bg-white shadow-2xl ring-1 ring-border px-3 py-2 flex items-center gap-2">
-        <span className="font-mono text-[10px] uppercase text-muted-foreground">Fingir hoy</span>
-        <input type="date" value={fakeHoy} onChange={(e) => setFakeHoy(e.target.value)}
-          className="rounded-lg border border-border bg-neutral-100 px-2 py-1 text-xs" />
-        {fakeHoy && (
-          <button onClick={() => setFakeHoy("")} className="text-xs text-primary font-bold">✕</button>
-        )}
-      </div>
+      {(import.meta.env.DEV || (typeof window !== "undefined" && new URL(window.location.href).searchParams.get("debug") === "1")) && (
+        <div className="fixed bottom-6 left-6 z-30 rounded-full bg-white shadow-2xl ring-1 ring-border px-3 py-2 flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase text-muted-foreground">Fingir hoy</span>
+          <input type="date" value={fakeHoy} onChange={(e) => setFakeHoy(e.target.value)}
+            className="rounded-lg border border-border bg-neutral-100 px-2 py-1 text-xs" />
+          {fakeHoy && (
+            <button onClick={() => setFakeHoy("")} className="text-xs text-primary font-bold">✕</button>
+          )}
+        </div>
+      )}
     </>
   );
 }
