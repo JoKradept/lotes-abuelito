@@ -45,7 +45,8 @@ const conteoMetodo = enRango.reduce((acc, a) => {
         <input type="date" name="hasta" value={hasta} class="h-9 rounded-xl border border-border bg-white px-2 text-sm" />
       </label>
       <button type="submit" class="h-9 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Aplicar</button>
-      <button type="button" onclick="window.print()" class="h-9 rounded-xl border border-border px-4 text-sm font-bold hover:bg-primary hover:text-primary-foreground transition">🖨️ Imprimir</button>
+      <button type="button" onclick="window.print()" class="h-9 rounded-xl border border-border px-4 text-sm font-bold hover:bg-primary hover:text-primary-foreground transition">📄 PDF / Imprimir</button>
+      <button type="button" id="descargar-xlsx" class="h-9 rounded-xl bg-disponible px-4 text-sm font-bold text-white shadow-lg shadow-disponible/30">📊 Excel</button>
     </form>
   </div>
 
@@ -139,6 +140,44 @@ const conteoMetodo = enRango.reduce((acc, a) => {
       <div class="border-t border-black pt-2 text-center font-mono text-[10px] uppercase tracking-wider">Firma vendedor</div>
     </div>
   </div>
+<script type="application/json" id="corte-data" set:html={JSON.stringify({
+  desde, hasta, total, porMetodo, conteoMetodo,
+  filas: enRango.map((a) => {
+    const v = ventaMap.get(a.ventaId);
+    const c = v ? clienteMap.get(v.clienteId) : null;
+    return { fecha: a.fecha, folio: a.abonoId, lote: v?.loteId ?? "", cliente: c?.nombre ?? "", metodo: a.metodo, monto: a.monto, nota: a.nota };
+  }),
+})}></script>
+<script>
+  document.getElementById("descargar-xlsx")?.addEventListener("click", async () => {
+    const data = JSON.parse(document.getElementById("corte-data").textContent);
+    // Cargar SheetJS on-demand desde CDN
+    if (!window.XLSX) await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+      s.onload = res; s.onerror = rej; document.head.appendChild(s);
+    });
+    const wb = XLSX.utils.book_new();
+    // Hoja 1: resumen
+    const resumen = [
+      ["Corte de caja"],
+      ["Período", `${data.desde} → ${data.hasta}`],
+      ["Total recibido", data.total],
+      ["Cantidad abonos", data.filas.length],
+      [],
+      ["Método", "Cantidad", "Total"],
+      ...Object.entries(data.porMetodo).map(([m, monto]) => [m, data.conteoMetodo[m], monto]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), "Resumen");
+    // Hoja 2: detalle
+    const detalle = [
+      ["Fecha", "Folio", "Lote", "Cliente", "Método", "Monto", "Nota"],
+      ...data.filas.map((f) => [f.fecha, f.folio, f.lote, f.cliente, f.metodo, f.monto, f.nota]),
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detalle), "Detalle");
+    XLSX.writeFile(wb, `corte_${data.desde}_${data.hasta}.xlsx`);
+  });
+</script>
 </Base>
 
 <style is:global>
