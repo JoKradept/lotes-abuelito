@@ -1,0 +1,154 @@
+---
+import Base from "../layouts/Base.astro";
+import { loadAbonos, loadVentas, loadClientes, loadLotes } from "../lib/domain";
+import { pesos } from "../lib/format";
+
+const url = Astro.url;
+const hoy = new Date();
+const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
+const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10);
+const desde = url.searchParams.get("desde") || inicioMes;
+const hasta = url.searchParams.get("hasta") || finMes;
+
+const [abonos, ventas, clientes, lotes] = await Promise.all([loadAbonos(), loadVentas(), loadClientes(), loadLotes()]);
+const clienteMap = new Map(clientes.map((c) => [c.clienteId, c]));
+const ventaMap = new Map(ventas.map((v) => [v.ventaId, v]));
+
+// Filtrar abonos por rango (fecha del abono, no cancelados)
+const enRango = abonos
+  .filter((a) => !a.cancelado && a.fecha >= desde && a.fecha <= hasta)
+  .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+const total = enRango.reduce((s, a) => s + a.monto, 0);
+const porMetodo = enRango.reduce((acc, a) => {
+  acc[a.metodo] = (acc[a.metodo] ?? 0) + a.monto;
+  return acc;
+}, {} as Record<string, number>);
+const conteoMetodo = enRango.reduce((acc, a) => {
+  acc[a.metodo] = (acc[a.metodo] ?? 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+---
+<Base title={`Corte ${desde} → ${hasta}`}>
+  <div class="mb-4 flex flex-wrap items-end justify-between gap-3 no-print">
+    <div>
+      <h1 class="text-3xl font-extrabold tracking-tight">Corte de caja</h1>
+      <p class="font-mono text-xs text-muted-foreground">Cuentas de pagos recibidos en un período.</p>
+    </div>
+    <form class="flex flex-wrap items-end gap-2">
+      <label class="flex flex-col">
+        <span class="font-mono text-[10px] uppercase text-muted-foreground">Desde</span>
+        <input type="date" name="desde" value={desde} class="h-9 rounded-xl border border-border bg-white px-2 text-sm" />
+      </label>
+      <label class="flex flex-col">
+        <span class="font-mono text-[10px] uppercase text-muted-foreground">Hasta</span>
+        <input type="date" name="hasta" value={hasta} class="h-9 rounded-xl border border-border bg-white px-2 text-sm" />
+      </label>
+      <button type="submit" class="h-9 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">Aplicar</button>
+      <button type="button" onclick="window.print()" class="h-9 rounded-xl border border-border px-4 text-sm font-bold hover:bg-primary hover:text-primary-foreground transition">🖨️ Imprimir</button>
+    </form>
+  </div>
+
+  <div class="corte-print space-y-4">
+    <div class="glass rounded-3xl p-5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div>
+          <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Período</p>
+          <p class="mt-1 font-semibold">{desde} → {hasta}</p>
+        </div>
+        <div>
+          <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Abonos</p>
+          <p class="mt-1 font-mono text-2xl font-bold">{enRango.length}</p>
+        </div>
+        <div>
+          <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Total recibido</p>
+          <p class="mt-1 font-mono text-2xl font-bold text-primary">{pesos(total)}</p>
+        </div>
+        <div>
+          <p class="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Emitido</p>
+          <p class="mt-1 font-mono text-xs">{new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass rounded-3xl p-5">
+      <p class="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Desglose por método</p>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="font-mono text-[10px] uppercase text-muted-foreground border-b border-border">
+            <th class="py-2 text-left">Método</th>
+            <th class="py-2 text-right">Cantidad</th>
+            <th class="py-2 text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(porMetodo).sort((a, b) => b[1] - a[1]).map(([m, monto]) => (
+            <tr class="border-b border-border/50 last:border-0">
+              <td class="py-2">{m}</td>
+              <td class="py-2 text-right font-mono">{conteoMetodo[m]}</td>
+              <td class="py-2 text-right font-mono font-semibold">{pesos(monto)}</td>
+            </tr>
+          ))}
+          <tr class="border-t-2 border-black font-bold">
+            <td class="py-2">Total</td>
+            <td class="py-2 text-right font-mono">{enRango.length}</td>
+            <td class="py-2 text-right font-mono">{pesos(total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="glass rounded-3xl p-5">
+      <p class="mb-3 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">Detalle ({enRango.length})</p>
+      {enRango.length === 0 ? (
+        <p class="text-sm text-muted-foreground">Sin abonos en este período.</p>
+      ) : (
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="font-mono text-[10px] uppercase text-muted-foreground border-b border-border">
+              <th class="py-2 text-left">Fecha</th>
+              <th class="py-2 text-left">Folio</th>
+              <th class="py-2 text-left">Lote</th>
+              <th class="py-2 text-left">Cliente</th>
+              <th class="py-2 text-left">Método</th>
+              <th class="py-2 text-right">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {enRango.map((a) => {
+              const v = ventaMap.get(a.ventaId);
+              const c = v ? clienteMap.get(v.clienteId) : null;
+              return (
+                <tr class="border-b border-border/50 last:border-0">
+                  <td class="py-1.5 font-mono text-xs">{a.fecha}</td>
+                  <td class="py-1.5 font-mono text-xs">{a.abonoId}</td>
+                  <td class="py-1.5 font-mono font-semibold">{v?.loteId ?? "—"}</td>
+                  <td class="py-1.5 truncate max-w-[180px]">{c?.nombre ?? "—"}</td>
+                  <td class="py-1.5 text-xs">{a.metodo}</td>
+                  <td class="py-1.5 text-right font-mono font-semibold">{pesos(a.monto)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+
+    <div class="grid grid-cols-2 gap-8 mt-10 no-screen">
+      <div class="border-t border-black pt-2 text-center font-mono text-[10px] uppercase tracking-wider">Firma secretaria</div>
+      <div class="border-t border-black pt-2 text-center font-mono text-[10px] uppercase tracking-wider">Firma vendedor</div>
+    </div>
+  </div>
+</Base>
+
+<style is:global>
+  @media print {
+    body { background: white !important; }
+    .no-print { display: none !important; }
+    .corte-print .glass { background: white !important; border: 1px solid #ddd; box-shadow: none !important; padding: 12px !important; }
+    header, nav { display: none !important; }
+  }
+  @media screen {
+    .no-screen { display: none !important; }
+  }
+</style>
