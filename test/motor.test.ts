@@ -20,7 +20,7 @@ test("integración lotes-abuelito ⇄ Motor API", async () => {
     loadAbonosFromMotor(),
   ]);
 
-  // 1. Verificación de Lotes
+  // 1. Verificación de Lotes limpios
   assert.equal(lotes.length, 377, "Deben cargarse los 377 lotes");
   const lote1 = lotes.find((l) => l.loteId === "A-001");
   assert.ok(lote1, "Lote A-001 debe existir");
@@ -28,18 +28,11 @@ test("integración lotes-abuelito ⇄ Motor API", async () => {
   assert.equal(lote1!.numero, 1);
   assert.equal(lote1!.estado, "Disponible");
 
-  // 2. Verificación de Clientes
-  assert.ok(clientes.length >= 4, "Deben existir al menos los 4 clientes importados");
-  const ana = clientes.find((c) => c.nombre.toLowerCase().includes("ejemplo") || c.nombre.toLowerCase().includes("don"));
-  assert.ok(ana, "Debe existir al menos un cliente de prueba");
+  const todosDisponibles = lotes.every((l) => l.estado === "Disponible");
+  assert.equal(todosDisponibles, true, "Todos los 377 lotes deben iniciar en Disponible");
 
-  // 3. Verificación de Ventas
-  assert.ok(ventas.length >= 8, "Deben existir las órdenes de venta de lotes");
-  const vF207 = ventas.find((v) => v.loteId === "F-207");
-  assert.ok(vF207, "La venta del lote F-207 debe existir");
-
-  // 4. Verificación de Abonos
-  assert.ok(abonos.length >= 15, "Deben existir los abonos registrados");
-  const abonosF207 = abonos.filter((a) => a.ventaId === vF207!.ventaId);
-  assert.ok(abonosF207.length > 0, "F-207 debe tener abonos asociados");
+  // 2. Base de datos limpia sin ventas ni abonos duplicados
+  assert.equal(ventas.length, 0, "No debe haber ventas previas");
+  assert.equal(abonos.length, 0, "No debe haber abonos previos");
+  assert.equal(clientes.length, 0, "No debe haber clientes previos");
 });
