@@ -1,14 +1,18 @@
 ---
 import "../styles/globals.css";
+import { isMotorAvailable } from "../lib/motor";
 const { title = "Lotificación — Cumbres de Tiripetío" } = Astro.props;
 const path = Astro.url.pathname;
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${import.meta.env.SHEET_ID}/edit`;
+const motorActivo = await isMotorAvailable();
 const nav: [string, string, boolean?][] = [
   ["/", "Plano"],
   ["/lotes", "Lotes"],
   ["/ventas", "Ventas"],
   ["/clientes", "Clientes"],
+  ["/vendedores", "Vendedores"],
   ["/corte", "Corte"],
+  ["http://localhost:3031/studio", "Studio ↗", true],
   [SHEET_URL, "Sheet ↗", true],
 ];
 ---
@@ -35,7 +39,18 @@ const nav: [string, string, boolean?][] = [
           LOT
         </div>
         <div class="leading-tight">
-          <p class="text-lg font-extrabold tracking-tight">Lotificación</p>
+          <div class="flex items-center gap-2">
+            <p class="text-lg font-extrabold tracking-tight">Lotificación</p>
+            {motorActivo ? (
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+                <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Motor API
+              </span>
+            ) : (
+              <span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                Sheets
+              </span>
+            )}
+          </div>
           <p class="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">Cumbres de Tiripetío · Michoacán</p>
         </div>
       </div>
