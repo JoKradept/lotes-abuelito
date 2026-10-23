@@ -1,6 +1,13 @@
 import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { agregarFila, leerRango, escribirRango, filaPorId } from "../lib/sheets";
+import {
+  isMotorAvailable,
+  motorCrearCliente,
+  motorCrearVenta,
+  motorCrearAbono,
+  motorGuardarVentaRapida,
+} from "../lib/motor";
 
 const uid = (pref: string, prev: number) =>
   `${pref}-${String(prev + 1).padStart(3, "0")}`;
@@ -15,6 +22,13 @@ export const server = {
       notas: z.string().nullish().transform((v) => v ?? ""),
     }),
     handler: async (i) => {
+      if (await isMotorAvailable()) {
+        try {
+          return await motorCrearCliente(i);
+        } catch (e) {
+          console.warn("Motor crearCliente falló, usando Google Sheets:", e);
+        }
+      }
       const rows = await leerRango("Clientes!A1:E");
       const id = uid("C", rows.length - 1);
       await agregarFila("Clientes", [id, i.nombre, i.telefono, i.direccion, i.notas]);
@@ -34,6 +48,13 @@ export const server = {
       notas: z.string().optional().default(""),
     }),
     handler: async (i) => {
+      if (await isMotorAvailable()) {
+        try {
+          return await motorCrearVenta(i);
+        } catch (e) {
+          console.warn("Motor crearVenta falló, usando Google Sheets:", e);
+        }
+      }
       const rows = await leerRango("Ventas!A1:H");
       const id = uid("V", rows.length - 1);
       await agregarFila("Ventas", [id, i.loteId, i.clienteId, i.fecha,
@@ -65,13 +86,36 @@ export const server = {
       metodo: z.enum(["Efectivo", "Transferencia", "Cheque", "Otro"]),
       nota: z.string().nullish().transform((v) => v ?? ""),
       avanzaFecha: z.coerce.boolean().default(false),
+      comprobanteUrl: z.string().nullish().transform((v) => v ?? ""),
     }),
     handler: async (i) => {
-      const rows = await leerRango("Abonos!A1:I");
+      if (await isMotorAvailable()) {
+        try {
+          return await motorCrearAbono(i);
+        } catch (e) {
+          console.warn("Motor crearAbono falló, usando Google Sheets:", e);
+        }
+      }
+      const rows = await leerRango("Abonos!A1:J");
       const id = uid("A", rows.length - 1);
       await agregarFila("Abonos", [id, i.ventaId, i.fecha, i.monto, i.metodo,
-        i.nota, "FALSE", new Date().toISOString(), i.avanzaFecha ? "TRUE" : "FALSE"]);
+        i.nota, "FALSE", new Date().toISOString(), i.avanzaFecha ? "TRUE" : "FALSE", i.comprobanteUrl]);
       return { abonoId: id };
+    },
+  }),
+
+  crearVendedor: defineAction({
+    accept: "form",
+    input: z.object({
+      nombre: z.string().min(1),
+      telefono: z.string().nullish().transform((v) => v ?? ""),
+      comisionPct: z.coerce.number().min(0).max(100).default(0),
+    }),
+    handler: async (i) => {
+      const rows = await leerRango("Vendedores!A1:E");
+      const id = uid("VD", rows.length - 1);
+      await agregarFila("Vendedores", [id, i.nombre.trim(), i.telefono, i.comisionPct, "TRUE"]);
+      return { vendedorId: id };
     },
   }),
 
@@ -87,8 +131,17 @@ export const server = {
       cuotaPeriodo: z.coerce.number().optional().default(0),
       frecuenciaPago: z.enum(["Semanal", "Quincenal", "Mensual", "Otro"]).default("Mensual"),
       nota: z.string().nullish().transform((v) => v ?? ""),
+      vendedorId: z.string().nullish().transform((v) => v ?? ""),
+      comisionPctVenta: z.coerce.number().optional().default(0),
     }),
     handler: async (i) => {
+      if (await isMotorAvailable()) {
+        try {
+          return await motorGuardarVentaRapida(i);
+        } catch (e) {
+          console.warn("Motor guardarVentaRapida falló, usando Google Sheets:", e);
+        }
+      }
       // 1. Update lote.estado (y precioLista si el usuario lo editó)
       const lotes = await leerRango("Lotes!A1:K");
       const head = lotes[0];
@@ -143,11 +196,13 @@ export const server = {
         await set("frecuenciaPago", i.frecuenciaPago);
         await set("cuotaPeriodo", i.cuotaPeriodo);
         if (i.nota) await set("notas", i.nota);
+        if (i.vendedorId) await set("vendedorId", i.vendedorId);
+        if (i.comisionPctVenta) await set("comisionPctVenta", i.comisionPctVenta);
       } else {
         const ventaId = uid("V", ventas.length - 1);
         const fecha = new Date().toISOString().slice(0, 10);
         await agregarFila("Ventas", [ventaId, i.loteId, clienteId, fecha,
-          precio, i.enganche, i.frecuenciaPago, i.cuotaPeriodo, i.nota]);
+          precio, i.enganche, i.frecuenciaPago, i.cuotaPeriodo, i.nota, i.vendedorId, i.comisionPctVenta]);
       }
       return { ok: true };
     },

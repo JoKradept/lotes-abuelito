@@ -1,5 +1,12 @@
 /** Tipos del dominio. Espejo del schema del Sheet, camelCase. */
 import { leerRango, toObjects } from "./sheets";
+import {
+  isMotorAvailable,
+  loadLotesFromMotor,
+  loadClientesFromMotor,
+  loadVentasFromMotor,
+  loadAbonosFromMotor,
+} from "./motor";
 
 export type Estado = "Disponible" | "Apartado" | "Vendido" | "Liquidado";
 
@@ -36,6 +43,16 @@ export type Venta = {
   frecuenciaPago: FrecuenciaPago;
   cuotaPeriodo: number;
   notas: string;
+  vendedorId: string;
+  comisionPctVenta: number;
+};
+
+export type Vendedor = {
+  vendedorId: string;
+  nombre: string;
+  telefono: string;
+  comisionPct: number;
+  activo: boolean;
 };
 
 export type Abono = {
@@ -48,6 +65,7 @@ export type Abono = {
   cancelado: boolean;
   registradoEn: string;
   avanzaFecha: boolean;
+  comprobanteUrl: string;
 };
 
 
@@ -55,6 +73,13 @@ const n = (s: string) => Number(String(s ?? "").replace(/[^\d.-]/g, "")) || 0;
 const b = (s: string) => (s ?? "").toUpperCase() === "SI" || s === "TRUE" || s === "true" || s === "Yes";
 
 export async function loadLotes(): Promise<Lote[]> {
+  if (await isMotorAvailable()) {
+    try {
+      return await loadLotesFromMotor();
+    } catch (e) {
+      console.warn("Motor loadLotes falló, usando Google Sheets:", e);
+    }
+  }
   const rows = await leerRango("Lotes!A1:K500");
   return toObjects<Record<string, string>>(rows).map((l) => ({
     loteId: `${l.manzana}-${String(n(l.numero)).padStart(3, "0")}`,
@@ -72,6 +97,13 @@ export async function loadLotes(): Promise<Lote[]> {
 }
 
 export async function loadClientes(): Promise<Cliente[]> {
+  if (await isMotorAvailable()) {
+    try {
+      return await loadClientesFromMotor();
+    } catch (e) {
+      console.warn("Motor loadClientes falló, usando Google Sheets:", e);
+    }
+  }
   const rows = await leerRango("Clientes!A1:E500");
   return toObjects<Record<string, string>>(rows).map((c) => ({
     clienteId: c.clienteId ?? "",
@@ -83,7 +115,14 @@ export async function loadClientes(): Promise<Cliente[]> {
 }
 
 export async function loadVentas(): Promise<Venta[]> {
-  const rows = await leerRango("Ventas!A1:I500");
+  if (await isMotorAvailable()) {
+    try {
+      return await loadVentasFromMotor();
+    } catch (e) {
+      console.warn("Motor loadVentas falló, usando Google Sheets:", e);
+    }
+  }
+  const rows = await leerRango("Ventas!A1:K500");
   return toObjects<Record<string, string>>(rows).map((v) => ({
     ventaId: v.ventaId ?? "",
     loteId: v.loteId ?? "",
@@ -94,11 +133,31 @@ export async function loadVentas(): Promise<Venta[]> {
     frecuenciaPago: (v.frecuenciaPago as FrecuenciaPago) ?? "",
     cuotaPeriodo: n(v.cuotaPeriodo),
     notas: v.notas ?? "",
+    vendedorId: v.vendedorId ?? "",
+    comisionPctVenta: n(v.comisionPctVenta),
+  }));
+}
+
+export async function loadVendedores(): Promise<Vendedor[]> {
+  const rows = await leerRango("Vendedores!A1:E500");
+  return toObjects<Record<string, string>>(rows).map((v) => ({
+    vendedorId: v.vendedorId ?? "",
+    nombre: v.nombre ?? "",
+    telefono: v.telefono ?? "",
+    comisionPct: n(v.comisionPct),
+    activo: b(v.activo),
   }));
 }
 
 export async function loadAbonos(): Promise<Abono[]> {
-  const rows = await leerRango("Abonos!A1:I5000");
+  if (await isMotorAvailable()) {
+    try {
+      return await loadAbonosFromMotor();
+    } catch (e) {
+      console.warn("Motor loadAbonos falló, usando Google Sheets:", e);
+    }
+  }
+  const rows = await leerRango("Abonos!A1:J5000");
   return toObjects<Record<string, string>>(rows).map((a) => ({
     abonoId: a.abonoId ?? "",
     ventaId: a.ventaId ?? "",
@@ -109,6 +168,7 @@ export async function loadAbonos(): Promise<Abono[]> {
     cancelado: b(a.cancelado),
     registradoEn: a.registradoEn ?? "",
     avanzaFecha: b(a.avanzaFecha),
+    comprobanteUrl: a.comprobanteUrl ?? "",
   }));
 }
 

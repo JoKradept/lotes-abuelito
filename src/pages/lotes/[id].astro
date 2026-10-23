@@ -38,7 +38,18 @@ const ESTILO = {
             Manzana {lote.manzana} · {lote.calle || "sin calle"}{lote.esquina ? " · esquina" : ""}
           </p>
         </div>
-        <span class={`rounded-xl px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-wider ring-1 ${ESTILO[lote.estado].chip} ${ESTILO[lote.estado].texto}`}>{lote.estado}</span>
+        <div class="flex items-center gap-2">
+          {lote.estado === "Liquidado" && venta && (
+            <a
+              href={`http://localhost:3031/v1/ventas/orden/${venta.ventaId}/print?template=finiquito`}
+              target="_blank"
+              class="rounded-xl px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-wider bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 inline-flex items-center gap-1"
+            >
+              📄 Finiquito
+            </a>
+          )}
+          <span class={`rounded-xl px-3 py-1.5 font-mono text-xs font-semibold uppercase tracking-wider ring-1 ${ESTILO[lote.estado].chip} ${ESTILO[lote.estado].texto}`}>{lote.estado}</span>
+        </div>
       </div>
 
       <div class="grid grid-cols-2 gap-px bg-border">
@@ -105,7 +116,10 @@ const ESTILO = {
                 <li class={`flex items-center justify-between py-3 font-mono text-xs ${a.cancelado ? "line-through opacity-50" : ""}`}>
                   <div>
                     <p class="text-foreground font-semibold">{a.fecha}</p>
-                    <p class="text-muted-foreground">{a.abonoId} · {a.metodo}{a.nota ? ` · ${a.nota}` : ""}</p>
+                    <p class="text-muted-foreground">
+                      {a.abonoId} · {a.metodo}{a.nota ? ` · ${a.nota}` : ""}
+                      <a href={`http://localhost:3031/v1/pagos/abono/${a.abonoId}/print?template=recibo`} target="_blank" class="ml-2 text-primary hover:underline font-bold">🧾 Recibo</a>
+                    </p>
                   </div>
                   <span class="text-sm font-semibold">{pesos(a.monto)}</span>
                 </li>
