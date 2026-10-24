@@ -1,6 +1,26 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { UsuariosPanel } from "../../components/UsuariosPanel";
+
+const MOTOR_URL = (
+  (typeof process !== "undefined" && process.env?.MOTOR_URL) ||
+  "http://localhost:3031/v1"
+).replace(/\/$/, "");
+const MOTOR_TOKEN =
+  (typeof process !== "undefined" && process.env?.MOTOR_TOKEN) ||
+  "O13xxar6WuBH5eCG6tZ7Hr5aFjMN24EBNGUkc47hnCo";
+
+let usuariosIniciales: any[] = [];
+try {
+  const res = await fetch(`${MOTOR_URL}/_meta/users`, {
+    headers: { Authorization: `Bearer ${MOTOR_TOKEN}` },
+  });
+  if (res.ok) {
+    usuariosIniciales = await res.json();
+  }
+} catch (e) {
+  console.error("Error al cargar usuarios iniciales en SSR:", e);
+}
 ---
 <Base title="Gestión de Usuarios y Roles — Cumbres de Tiripetío">
   <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -17,5 +37,5 @@ import { UsuariosPanel } from "../../components/UsuariosPanel";
     </div>
   </div>
 
-  <UsuariosPanel client:only="react" />
+  <UsuariosPanel client:load usuariosIniciales={usuariosIniciales} />
 </Base>

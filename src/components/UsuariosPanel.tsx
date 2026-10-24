@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { getToken, onAuthChange, login as authLogin } from "../lib/auth";
+import { getSavedSession, getToken, onAuthChange, login as authLogin, type UserSession } from "../lib/auth";
 
-type UserItem = {
+export type UserItem = {
   usuario: string;
   roles: string[];
   activo: boolean;
@@ -33,15 +33,19 @@ const ROLES_INFO: Record<string, { label: string; chip: string; desc: string }> 
 
 const MOTOR_URL = "http://localhost:3031/v1";
 
-export function UsuariosPanel() {
-  const [usuarios, setUsuarios] = useState<UserItem[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [token, setToken] = useState<string>("");
+type Props = {
+  usuariosIniciales?: UserItem[];
+};
+
+export function UsuariosPanel({ usuariosIniciales = [] }: Props) {
+  const [usuarios, setUsuarios] = useState<UserItem[]>(usuariosIniciales);
+  const [cargando, setCargando] = useState(false);
+  const [session, setSession] = useState<UserSession | null>(getSavedSession());
+  const [token, setToken] = useState<string>(getToken());
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [exitoMsg, setExitoMsg] = useState<string>("");
-  const [necesitaLogin, setNecesitaLogin] = useState(false);
 
-  // Formulario login directo
+  // Formulario login Dueño
   const [loginUser, setLoginUser] = useState("donalfonso");
   const [loginPass, setLoginPass] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -58,41 +62,48 @@ export function UsuariosPanel() {
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [cambiarPassword, setCambiarPassword] = useState("");
 
+  const esDueno = Boolean(
+    session?.roles?.some((r) => ["dueno", "admin", "*"].includes(r))
+  );
+
   const cargar = async (authToken?: string) => {
     const t = authToken !== undefined ? authToken : getToken();
     setToken(t);
+    if (!t) return;
     setCargando(true);
     setErrorMsg("");
-    if (!t) {
-      setNecesitaLogin(true);
-      setCargando(false);
-      return;
-    }
     try {
       const res = await fetch(`${MOTOR_URL}/_meta/users`, {
         headers: { Authorization: `Bearer ${t}` },
       });
-      if (res.status === 401 || res.status === 403) {
-        setNecesitaLogin(true);
-        setErrorMsg("Inicia sesión con credenciales de Dueño o Administrador.");
-        setUsuarios([]);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          setErrorMsg("Sesión expirada o permisos insuficientes.");
+        }
         return;
       }
-      if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
-      setUsuarios(Array.isArray(data) ? data : []);
-      setNecesitaLogin(false);
-    } catch (e: any) {
-      setErrorMsg("No se pudo conectar con el Motor. Verifica que esté iniciado en el puerto 3031.");
+      if (Array.isArray(data)) {
+        setUsuarios(data);
+      }
+    } catch {
+      setErrorMsg("No se pudo conectar con el Motor (puerto 3031).");
     } finally {
       setCargando(false);
     }
   };
 
   useEffect(() => {
-    cargar();
-    const unsub = onAuthChange((s) => {
-      cargar(s?.token || "");
+    const s = getSavedSession();
+    setSession(s);
+    if (s?.token) {
+      setToken(s.token);
+      cargar(s.token);
+    }
+    const unsub = onAuthChange((newSession) => {
+      setSession(newSession);
+      setToken(newSession?.token || "");
+      if (newSession?.token) cargar(newSession.token);
     });
     return () => unsub();
   }, []);
@@ -102,8 +113,11 @@ export function UsuariosPanel() {
     setLoginCargando(true);
     setLoginError("");
     try {
-      const session = await authLogin(loginUser, loginPass);
-      cargar(session.token);
+      const nuevaSession = await authLogin(loginUser, loginPass);
+      setSession(nuevaSession);
+      setToken(nuevaSession.token);
+      setLoginPass("");
+      cargar(nuevaSession.token);
     } catch (err: any) {
       setLoginError(err.message || "Credenciales incorrectas");
     } finally {
@@ -121,6 +135,10 @@ export function UsuariosPanel() {
 
   const handleCrear = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!esDueno) {
+      alert("Inicia sesión como Dueño para registrar nuevos usuarios.");
+      return;
+    }
     if (!nuevoNombre.trim() || nuevoPassword.length < 8) {
       alert("El nombre es requerido y la contraseña debe tener al menos 8 caracteres.");
       return;
@@ -157,6 +175,10 @@ export function UsuariosPanel() {
   };
 
   const handleToggleActivo = async (u: UserItem) => {
+    if (!esDueno) {
+      alert("Inicia sesión como Dueño para cambiar el estado de los usuarios.");
+      return;
+    }
     if (u.usuario === "donalfonso") {
       alert("No se puede desactivar la cuenta principal del Dueño.");
       return;
@@ -184,7 +206,7 @@ export function UsuariosPanel() {
 
   const handleGuardarEdicion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editandoUser) return;
+    if (!editandoUser || !esDueno) return;
     setGuardando(true);
     try {
       const body: any = {
@@ -216,6 +238,10 @@ export function UsuariosPanel() {
   };
 
   const handleEliminar = async (usuario: string) => {
+    if (!esDueno) {
+      alert("Inicia sesión como Dueño para revocar usuarios.");
+      return;
+    }
     if (usuario === "donalfonso") {
       alert("No puedes eliminar al Dueño.");
       return;
@@ -232,70 +258,6 @@ export function UsuariosPanel() {
       alert(err.message);
     }
   };
-
-  if (necesitaLogin) {
-    return (
-      <div className="glass max-w-md mx-auto rounded-3xl p-8 border border-border shadow-xl space-y-6">
-        <div className="text-center space-y-2">
-          <div className="size-14 mx-auto rounded-2xl bg-amber-100 text-amber-800 grid place-items-center text-2xl font-bold shadow-inner">
-            👑
-          </div>
-          <h2 className="text-2xl font-extrabold tracking-tight">Acceso de Dueño</h2>
-          <p className="text-xs text-muted-foreground">
-            Inicia sesión con credenciales de Dueño o Administrador para gestionar las cuentas del personal.
-          </p>
-        </div>
-
-        {loginError && (
-          <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-red-800 text-xs font-medium">
-            ⚠️ {loginError}
-          </div>
-        )}
-
-        <form onSubmit={handleInlineLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-mono font-medium text-muted-foreground mb-1">
-              Usuario
-            </label>
-            <input
-              type="text"
-              required
-              value={loginUser}
-              onChange={(e) => setLoginUser(e.target.value)}
-              placeholder="donalfonso"
-              className="w-full h-11 rounded-2xl border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-mono font-medium text-muted-foreground mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              required
-              value={loginPass}
-              onChange={(e) => setLoginPass(e.target.value)}
-              placeholder="••••••••"
-              className="w-full h-11 rounded-2xl border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loginCargando}
-            className="w-full h-11 rounded-2xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/30 hover:opacity-90 transition disabled:opacity-50"
-          >
-            {loginCargando ? "Accediendo..." : "Entrar como Dueño"}
-          </button>
-        </form>
-
-        <p className="text-[11px] text-center text-muted-foreground font-mono">
-          La cuenta de Dueño es creada por terminal o Studio.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -314,9 +276,37 @@ export function UsuariosPanel() {
         ))}
       </div>
 
+      {/* Banner de Estado de Autenticación */}
+      {!esDueno ? (
+        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-900 text-sm flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">👑</span>
+            <span>
+              <strong>Modo consulta:</strong> Para activar/desactivar accesos, crear usuarios o cambiar contraseñas, identifícate como Dueño.
+            </span>
+          </div>
+          <span className="font-mono text-xs text-amber-700 bg-amber-100 px-2.5 py-1 rounded-xl">
+            Acceso: donalfonso / Cumbres2026!
+          </span>
+        </div>
+      ) : (
+        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-3.5 text-emerald-900 text-sm flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span>✓</span>
+            <span>
+              Sesión activa como <strong>{session?.usuario}</strong> (Control total de usuarios).
+            </span>
+          </div>
+          <span className="font-mono text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold">
+            Modo administrador habilitado
+          </span>
+        </div>
+      )}
+
       {errorMsg && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-amber-800 text-sm flex items-center justify-between">
+        <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-red-800 text-sm flex items-center justify-between">
           <span>⚠️ {errorMsg}</span>
+          <button onClick={() => setErrorMsg("")} className="font-bold text-xs opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
 
@@ -332,21 +322,22 @@ export function UsuariosPanel() {
         <div className="lg:col-span-8 glass rounded-3xl overflow-hidden border border-border">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-white/40">
             <div>
-              <h2 className="text-lg font-extrabold tracking-tight">Usuarios y Accesos</h2>
+              <h2 className="text-lg font-extrabold tracking-tight">Usuarios y Accesos ({usuarios.length})</h2>
               <p className="font-mono text-xs text-muted-foreground">Personal autorizado en Cumbres de Tiripetío</p>
             </div>
-            <button
-              onClick={() => cargar()}
-              className="text-xs font-mono px-3 py-1.5 rounded-xl border border-border hover:bg-neutral-100 transition"
-            >
-              ↻ Refrescar
-            </button>
+            {esDueno && (
+              <button
+                onClick={() => cargar()}
+                disabled={cargando}
+                className="text-xs font-mono px-3 py-1.5 rounded-xl border border-border hover:bg-neutral-100 transition"
+              >
+                {cargando ? "↻..." : "↻ Refrescar"}
+              </button>
+            )}
           </div>
 
           <div className="divide-y divide-border/60">
-            {cargando ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">Cargando usuarios...</div>
-            ) : usuarios.length === 0 ? (
+            {usuarios.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">Sin usuarios registrados.</div>
             ) : (
               usuarios.map((u) => (
@@ -392,13 +383,13 @@ export function UsuariosPanel() {
                     {/* Switch Activo/Inactivo */}
                     <button
                       onClick={() => handleToggleActivo(u)}
-                      disabled={u.usuario === "donalfonso"}
+                      disabled={u.usuario === "donalfonso" || !esDueno}
                       className={`h-9 px-3 rounded-xl font-mono text-xs font-semibold transition inline-flex items-center gap-1.5 border ${
                         u.activo
                           ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                           : "bg-neutral-100 text-neutral-500 border-neutral-300 hover:bg-neutral-200"
-                      } ${u.usuario === "donalfonso" ? "opacity-60 cursor-not-allowed" : ""}`}
-                      title={u.activo ? "Desactivar acceso" : "Activar acceso"}
+                      } ${u.usuario === "donalfonso" || !esDueno ? "opacity-75 cursor-not-allowed" : ""}`}
+                      title={!esDueno ? "Inicia sesión como Dueño para cambiar estado" : u.activo ? "Desactivar acceso" : "Activar acceso"}
                     >
                       <span className={`size-2 rounded-full ${u.activo ? "bg-emerald-500" : "bg-neutral-400"}`}></span>
                       {u.activo ? "Activo" : "Inactivo"}
@@ -407,6 +398,10 @@ export function UsuariosPanel() {
                     {/* Editar */}
                     <button
                       onClick={() => {
+                        if (!esDueno) {
+                          alert("Inicia sesión como Dueño para modificar usuarios.");
+                          return;
+                        }
                         setEditandoUser(u);
                         setEditRoles([...u.roles]);
                         setCambiarPassword("");
@@ -420,7 +415,10 @@ export function UsuariosPanel() {
                     {u.usuario !== "donalfonso" && (
                       <button
                         onClick={() => handleEliminar(u.usuario)}
-                        className="h-9 px-2.5 rounded-xl border border-border text-xs font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 transition"
+                        disabled={!esDueno}
+                        className={`h-9 px-2.5 rounded-xl border border-border text-xs font-semibold text-red-600 hover:bg-red-50 hover:border-red-300 transition ${
+                          !esDueno ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
                         title="Eliminar usuario"
                       >
                         ✕
@@ -433,80 +431,144 @@ export function UsuariosPanel() {
           </div>
         </div>
 
-        {/* Formulario Crear Usuario */}
-        <div className="lg:col-span-4 glass rounded-3xl p-6 border border-border space-y-5">
-          <div>
-            <h3 className="text-base font-extrabold tracking-tight">Crear Nuevo Usuario</h3>
-            <p className="font-mono text-xs text-muted-foreground mt-0.5">Asigna rol y contraseña de acceso</p>
-          </div>
-
-          <form onSubmit={handleCrear} className="space-y-4">
-            <div>
-              <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                Nombre de usuario
-              </label>
-              <input
-                type="text"
-                value={nuevoNombre}
-                onChange={(e) => setNuevoNombre(e.target.value)}
-                placeholder="ej. secretaria, contadora"
-                required
-                className="mt-1 h-11 w-full rounded-2xl border border-border bg-white px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            <div>
-              <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-                Contraseña (mínimo 8 caracteres)
-              </label>
-              <input
-                type="password"
-                value={nuevoPassword}
-                onChange={(e) => setNuevoPassword(e.target.value)}
-                placeholder="••••••••"
-                minLength={8}
-                required
-                className="mt-1 h-11 w-full rounded-2xl border border-border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            <div>
-              <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground mb-2 block">
-                Roles que tendrá
-              </label>
-              <div className="space-y-2">
-                {Object.entries(ROLES_INFO).map(([key, info]) => (
-                  <label
-                    key={key}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
-                      nuevosRoles.includes(key)
-                        ? "bg-primary/5 border-primary/40 font-semibold"
-                        : "border-border hover:bg-white/40"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={nuevosRoles.includes(key)}
-                      onChange={() => toggleRol(key, nuevosRoles, setNuevosRoles)}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <span className="block font-bold">{info.label}</span>
-                      <span className="text-[11px] text-muted-foreground font-normal">{info.desc}</span>
-                    </div>
-                  </label>
-                ))}
+        {/* Panel lateral: Login Dueño O Formulario Crear Usuario */}
+        <div className="lg:col-span-4 space-y-4">
+          {!esDueno ? (
+            <div className="glass rounded-3xl p-6 border border-border space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="size-8 rounded-xl bg-amber-100 text-amber-800 grid place-items-center font-bold text-sm">
+                  👑
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold tracking-tight">Acceso de Dueño</h3>
+                  <p className="font-mono text-xs text-muted-foreground">Inicia sesión para gestionar cuentas</p>
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={guardando}
-              className="h-11 w-full rounded-2xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/30 hover:opacity-95 transition disabled:opacity-50"
-            >
-              {guardando ? "Guardando..." : "Guardar Usuario"}
-            </button>
-          </form>
+              {loginError && (
+                <div className="rounded-xl bg-red-50 border border-red-200 p-2.5 text-red-800 text-xs font-medium">
+                  ⚠️ {loginError}
+                </div>
+              )}
+
+              <form onSubmit={handleInlineLogin} className="space-y-3">
+                <div>
+                  <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground block mb-1">
+                    Usuario
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={loginUser}
+                    onChange={(e) => setLoginUser(e.target.value)}
+                    placeholder="donalfonso"
+                    className="w-full h-10 rounded-xl border border-border bg-white px-3 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground block mb-1">
+                    Contraseña
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={loginPass}
+                    onChange={(e) => setLoginPass(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-10 rounded-xl border border-border bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loginCargando}
+                  className="w-full h-10 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-md hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {loginCargando ? "Accediendo..." : "Entrar como Dueño"}
+                </button>
+              </form>
+
+              <p className="text-[11px] text-muted-foreground font-mono text-center">
+                Clave inicial configurada: <code>Cumbres2026!</code>
+              </p>
+            </div>
+          ) : (
+            <div className="glass rounded-3xl p-6 border border-border space-y-5">
+              <div>
+                <h3 className="text-base font-extrabold tracking-tight">Crear Nuevo Usuario</h3>
+                <p className="font-mono text-xs text-muted-foreground mt-0.5">Asigna rol y contraseña de acceso</p>
+              </div>
+
+              <form onSubmit={handleCrear} className="space-y-4">
+                <div>
+                  <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Nombre de usuario
+                  </label>
+                  <input
+                    type="text"
+                    value={nuevoNombre}
+                    onChange={(e) => setNuevoNombre(e.target.value)}
+                    placeholder="ej. recepcion, ventas2"
+                    required
+                    className="mt-1 h-11 w-full rounded-2xl border border-border bg-white px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Contraseña (mínimo 8 caracteres)
+                  </label>
+                  <input
+                    type="password"
+                    value={nuevoPassword}
+                    onChange={(e) => setNuevoPassword(e.target.value)}
+                    placeholder="••••••••"
+                    minLength={8}
+                    required
+                    className="mt-1 h-11 w-full rounded-2xl border border-border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground mb-2 block">
+                    Roles que tendrá
+                  </label>
+                  <div className="space-y-2">
+                    {Object.entries(ROLES_INFO).map(([key, info]) => (
+                      <label
+                        key={key}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                          nuevosRoles.includes(key)
+                            ? "bg-primary/5 border-primary/40 font-semibold"
+                            : "border-border hover:bg-white/40"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={nuevosRoles.includes(key)}
+                          onChange={() => toggleRol(key, nuevosRoles, setNuevosRoles)}
+                          className="mt-0.5"
+                        />
+                        <div>
+                          <span className="block font-bold">{info.label}</span>
+                          <span className="text-[11px] text-muted-foreground font-normal">{info.desc}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={guardando}
+                  className="h-11 w-full rounded-2xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/30 hover:opacity-95 transition disabled:opacity-50"
+                >
+                  {guardando ? "Guardando..." : "Guardar Usuario"}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
 
