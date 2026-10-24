@@ -6,6 +6,8 @@ const MOTOR_URL = (
   "http://localhost:3031/v1"
 ).replace(/\/$/, "");
 
+const MOTOR_TOKEN = typeof process !== "undefined" ? process.env?.MOTOR_TOKEN : undefined;
+
 let _cachedAvailable: { at: number; ok: boolean } | null = null;
 const AVAILABILITY_TTL = 3000;
 
@@ -15,7 +17,7 @@ export async function isMotorAvailable(): Promise<boolean> {
     return _cachedAvailable.ok;
   }
   try {
-    const res = await fetch(`${MOTOR_URL}/_me`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(`${MOTOR_URL}/_health`, { signal: AbortSignal.timeout(1500) });
     const ok = res.ok;
     _cachedAvailable = { at: now, ok };
     return ok;
@@ -31,6 +33,7 @@ async function motorFetch(path: string, init?: RequestInit): Promise<any> {
     ...init,
     headers: {
       "content-type": "application/json",
+      ...(MOTOR_TOKEN ? { Authorization: `Bearer ${MOTOR_TOKEN}` } : {}),
       ...(init?.headers ?? {}),
     },
   });

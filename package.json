@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "node --test test/*.test.ts"
+    "test": "node --env-file-if-exists=.env --test test/*.test.ts"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.6",

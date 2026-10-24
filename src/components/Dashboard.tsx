@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { actions } from "astro:actions";
 import type { Abono, Cliente, Estado, Lote, Venta, Vendedor } from "../lib/domain";
 import { DIAS_FRECUENCIA, proximoAbono } from "../lib/venta-utils";
 import { PlanoInteractivo } from "./PlanoInteractivo";
 import { pesos } from "../lib/format";
+import { getSavedSession, onAuthChange } from "../lib/auth";
 
 const MANZANAS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 const ESTADOS: Estado[] = ["Disponible", "Apartado", "Vendido", "Liquidado"];
@@ -619,6 +620,12 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
   const [confirmDisp, setConfirmDisp] = useState(false);
   const [listaClientes, setListaClientes] = useState(clientes);
   const [dialogAbierto, setDialogAbierto] = useState(false);
+  const [session, setSession] = useState(getSavedSession());
+  useEffect(() => onAuthChange((s) => setSession(s)), []);
+  const esSecretariaSolo = Boolean(
+    session?.roles?.includes("secretaria") &&
+    !session?.roles?.some((r) => ["dueno", "administradora", "admin", "*"].includes(r))
+  );
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoTelDialog, setNuevoTelDialog] = useState("");
   const [nuevaDireccion, setNuevaDireccion] = useState("");
@@ -779,10 +786,12 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
                     <div className="rounded-2xl border border-border bg-neutral-100 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <label className="font-mono text-xs text-muted-foreground">Costo del lote</label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="checkbox" checked={editarPrecio} onChange={(e) => setEditarPrecio(e.target.checked)}
-                            className="size-5 rounded-full appearance-none border-2 border-border checked:bg-primary checked:border-primary cursor-pointer transition" />
-                          <span className="font-mono text-[11px] text-muted-foreground">Editar precio</span>
+                        <label className="flex items-center gap-2 cursor-pointer" title={esSecretariaSolo ? "Solo Dueño o Administradora pueden modificar precios" : undefined}>
+                          <input type="checkbox" checked={editarPrecio} disabled={esSecretariaSolo} onChange={(e) => setEditarPrecio(e.target.checked)}
+                            className="size-5 rounded-full appearance-none border-2 border-border checked:bg-primary checked:border-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition" />
+                          <span className={`font-mono text-[11px] ${esSecretariaSolo ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
+                            {esSecretariaSolo ? "Precio protegido" : "Editar precio"}
+                          </span>
                         </label>
                       </div>
                       <input inputMode="numeric" value={precioLista} readOnly={!editarPrecio}
