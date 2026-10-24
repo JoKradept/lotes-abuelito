@@ -3,10 +3,15 @@ import type { Lote, Cliente, Venta, Abono, Estado, FrecuenciaPago } from "./doma
 
 const MOTOR_URL = (
   (typeof process !== "undefined" && process.env?.MOTOR_URL) ||
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.MOTOR_URL) ||
   "http://localhost:3031/v1"
 ).replace(/\/$/, "");
 
-const MOTOR_TOKEN = typeof process !== "undefined" ? process.env?.MOTOR_TOKEN : undefined;
+// Token maestro para llamadas de servidor (Astro SSR) hacia Motor API
+const MOTOR_TOKEN =
+  (typeof process !== "undefined" && process.env?.MOTOR_TOKEN) ||
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.MOTOR_TOKEN) ||
+  "O13xxar6WuBH5eCG6tZ7Hr5aFjMN24EBNGUkc47hnCo";
 
 let _cachedAvailable: { at: number; ok: boolean } | null = null;
 const AVAILABILITY_TTL = 3000;

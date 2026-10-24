@@ -9,11 +9,15 @@ import {
 import type { Estado, Lote } from "../lib/domain";
 import { pesos } from "../lib/format";
 
-const COLOR: Record<Estado, string> = {
+const COLOR: Record<string, string> = {
   Disponible: "var(--disponible)",
   Apartado: "var(--apartado)",
   Vendido: "var(--vendido)",
   Liquidado: "var(--liquidado)",
+  disponible: "var(--disponible)",
+  apartado: "var(--apartado)",
+  vendido: "var(--vendido)",
+  liquidado: "var(--liquidado)",
 };
 
 const MIN_ZOOM = 0.6;
@@ -137,15 +141,26 @@ export function PlanoInteractivo({
 
             {/* Lotes */}
             {LOTES_PLANO.map((p) => {
-              const l = porNumero.get(p.numero);
-              if (!l) return null;
+              const l = porNumero.get(p.numero) ?? {
+                loteId: `${p.manzana}-${String(p.numero).padStart(3, "0")}`,
+                numero: p.numero,
+                manzana: p.manzana,
+                frente: 8,
+                fondo: 18,
+                calle: "",
+                esquina: false,
+                precioLista: 0,
+                estado: "Disponible" as Estado,
+                plano: "",
+                notas: "",
+              };
               const dim = manzanaActiva && manzanaActiva !== l.manzana;
               const isSel = l.loteId === seleccion;
               return (
                 <g key={p.numero} className={dim ? "opacity-25" : ""}>
                   <polygon
                     points={p.puntos}
-                    fill={COLOR[l.estado]}
+                    fill={COLOR[l.estado] || "var(--disponible)"}
                     fillOpacity={isSel ? 0.9 : 0.55}
                     stroke={isSel ? "oklch(0.24 0.055 277)" : "oklch(0.24 0.055 277 / 40%)"}
                     strokeWidth={isSel ? 2 : 0.6}
