@@ -776,9 +776,23 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
                 )}
 
                 {nuevoEstado === "Apartado" && (
-                  <textarea value={nota} onChange={(e) => setNota(e.target.value)}
-                    placeholder="Nota sobre el apartado (opcional)" rows={3}
-                    className="w-full rounded-2xl border border-border bg-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  <div className="space-y-3">
+                    <div>
+                      <label className="font-mono text-xs text-muted-foreground mb-1 block">
+                        Monto de apartado / Anticipo ($)
+                      </label>
+                      <input
+                        type="number"
+                        value={enganche}
+                        onChange={(e) => setEnganche(e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="Ej. 10000"
+                        className="h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 font-mono text-base font-semibold outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <textarea value={nota} onChange={(e) => setNota(e.target.value)}
+                      placeholder="Nota sobre el apartado (opcional)" rows={3}
+                      className="w-full rounded-2xl border border-border bg-neutral-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+                  </div>
                 )}
 
                 {nuevoEstado === "Vendido" && (

@@ -97,7 +97,7 @@ export async function loadVentasFromMotor(): Promise<Venta[]> {
       loteId,
       clienteId: v.cliente ?? "",
       fecha: v.fecha ?? "",
-      precioFinal: Number(v.total) || 0,
+      precioFinal: Number(v.total) || Number(lotePartida?.precioUnitario) || 0,
       enganche: Number(v.anticipo) || 0,
       frecuenciaPago: frecuencia,
       cuotaPeriodo: 0,
@@ -236,6 +236,7 @@ export async function motorGuardarVentaRapida(i: {
     });
   }
 
+  // 1. Estado Disponible -> liberar
   if (i.estado === "Disponible") {
     if (lote.estado !== "disponible") {
       await motorFetch(`/terrenos/lote/${lote.id}/liberar`, { method: "POST" });
@@ -243,14 +244,9 @@ export async function motorGuardarVentaRapida(i: {
     return { ok: true };
   }
 
-  if (i.estado === "Apartado") {
-    if (lote.estado === "disponible") {
-      await motorFetch(`/terrenos/lote/${lote.id}/apartar`, { method: "POST" });
-    }
-    return { ok: true };
-  }
-
-  if ((i.estado === "Vendido" || i.estado === "Liquidado") && i.cliente?.trim()) {
+  // 2. Si es Apartado, Vendido o Liquidado:
+  let clienteId = "";
+  if (i.cliente?.trim()) {
     const clientes = (await motorFetch("/contactos/contacto?limit=2000")) as Record<string, any>[];
     let cliente = clientes.find(
       (c) => c.nombre.trim().toLowerCase() === i.cliente!.trim().toLowerCase()
@@ -260,19 +256,75 @@ export async function motorGuardarVentaRapida(i: {
         method: "POST",
         body: JSON.stringify({ nombre: i.cliente.trim(), telefono: i.telefono ?? "" }),
       });
+    } else if (i.telefono && !cliente.telefono) {
+      await motorFetch(`/contactos/contacto/${cliente.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ telefono: i.telefono }),
+      });
+    }
+    clienteId = cliente.id;
+  }
+
+  const ordenes = (await motorFetch("/ventas/orden?limit=2000")) as Record<string, any>[];
+  let orden = ordenes.find((o) =>
+    o.partidas?.some((p: any) => p.registro === lote.id || p.descripcion === `Lote ${i.loteId}`)
+  );
+
+  const precioFinal = i.precioFinal || Number(lote.precio) || 0;
+
+  if (i.estado === "Apartado") {
+    if (lote.estado === "disponible") {
+      await motorFetch(`/terrenos/lote/${lote.id}/apartar`, { method: "POST" });
+    } else if (lote.estado === "vendido" || lote.estado === "liquidado") {
+      await motorFetch(`/terrenos/lote/${lote.id}/liberar`, { method: "POST" });
+      await motorFetch(`/terrenos/lote/${lote.id}/apartar`, { method: "POST" });
     }
 
-    const ordenes = (await motorFetch("/ventas/orden?limit=2000")) as Record<string, any>[];
-    let orden = ordenes.find((o) =>
-      o.partidas?.some((p: any) => p.registro === lote.id || p.descripcion === `Lote ${i.loteId}`)
-    );
+    if (clienteId) {
+      if (orden) {
+        await motorFetch(`/ventas/orden/${orden.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            cliente: clienteId,
+            anticipo: String(i.enganche || 0),
+            notas: `apartado · frecuencia:${i.frecuenciaPago ?? "Mensual"}${i.nota ? " · " + i.nota : ""}`,
+          }),
+        });
+      } else {
+        await motorFetch("/ventas/orden", {
+          method: "POST",
+          body: JSON.stringify({
+            cliente: clienteId,
+            fecha: new Date().toISOString().slice(0, 10),
+            formaPago: "credito",
+            anticipo: String(i.enganche || 0),
+            partidas: [
+              {
+                entidad: "terrenos/lote",
+                registro: lote.id,
+                descripcion: `Lote ${i.loteId}`,
+                cantidad: "1",
+                precioUnitario: String(precioFinal),
+              },
+            ],
+            notas: `apartado · frecuencia:${i.frecuenciaPago ?? "Mensual"}${i.nota ? " · " + i.nota : ""}`,
+          }),
+        });
+      }
+    }
+    return { ok: true };
+  }
 
-    const precioFinal = i.precioFinal || Number(lote.precio) || 0;
+  if (i.estado === "Vendido" || i.estado === "Liquidado") {
+    if (lote.estado === "disponible") {
+      await motorFetch(`/terrenos/lote/${lote.id}/apartar`, { method: "POST" });
+    }
+
     if (!orden) {
       orden = await motorFetch("/ventas/orden", {
         method: "POST",
         body: JSON.stringify({
-          cliente: cliente.id,
+          cliente: clienteId || undefined,
           fecha: new Date().toISOString().slice(0, 10),
           formaPago: "credito",
           anticipo: String(i.enganche || 0),
@@ -288,6 +340,18 @@ export async function motorGuardarVentaRapida(i: {
           notas: `frecuencia:${i.frecuenciaPago ?? "Mensual"}${i.nota ? " · " + i.nota : ""}`,
         }),
       });
+    } else if (clienteId) {
+      await motorFetch(`/ventas/orden/${orden.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          cliente: clienteId,
+          anticipo: String(i.enganche || 0),
+          notas: `frecuencia:${i.frecuenciaPago ?? "Mensual"}${i.nota ? " · " + i.nota : ""}`,
+        }),
+      });
+    }
+
+    if (orden.estado !== "confirmada" && orden.estado !== "pagada") {
       await motorFetch(`/ventas/orden/${orden.id}/confirmar`, { method: "POST" });
     }
 
@@ -304,6 +368,13 @@ export async function motorGuardarVentaRapida(i: {
             notas: "Liquidación total",
           }),
         });
+      }
+      if (lote.estado !== "liquidado") {
+        try {
+          await motorFetch(`/terrenos/lote/${lote.id}/liquidar`, { method: "POST" });
+        } catch {
+          // Si el lote ya está liquidado
+        }
       }
     }
   }

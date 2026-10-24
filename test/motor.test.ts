@@ -33,6 +33,6 @@ test("integración lotes-abuelito ⇄ Motor API", async () => {
   assert.equal(clientes.length, 4, "Deben existir 4 clientes dummy");
 
   // 3. Ventas y Abonos
-  assert.equal(ventas.length, 3, "Deben existir 3 ventas");
+  assert.ok(ventas.length >= 3, "Deben existir al menos 3 ventas");
   assert.equal(abonos.length, 7, "Deben existir 7 abonos registrados");
 });

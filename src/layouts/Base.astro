@@ -2,6 +2,7 @@
 import "../styles/globals.css";
 import { isMotorAvailable } from "../lib/motor";
 import { AuthBar } from "../components/AuthBar";
+import { LoginWall } from "../components/LoginWall";
 const { title = "Lotificación — Cumbres de Tiripetío" } = Astro.props;
 const path = Astro.url.pathname;
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${import.meta.env.SHEET_ID}/edit`;
@@ -28,6 +29,7 @@ const nav: [string, string, boolean?][] = [
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
 </head>
 <body class="relative min-h-screen overflow-x-hidden">
+  <LoginWall client:load />
   <div class="pointer-events-none fixed inset-0 -z-10">
     <div class="blob-a absolute -left-32 -top-32 size-[460px] rounded-full bg-primary/30 blur-[130px]"></div>
     <div class="blob-b absolute right-0 top-1/4 size-[420px] rounded-full bg-accent/30 blur-[130px]"></div>
