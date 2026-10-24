@@ -221,6 +221,7 @@ export async function motorGuardarVentaRapida(i: {
   enganche?: number;
   cuotaPeriodo?: number;
   frecuenciaPago?: FrecuenciaPago;
+  formaPago?: "contado" | "credito";
   nota?: string;
   vendedorId?: string;
   comisionPctVenta?: number;
@@ -326,8 +327,9 @@ export async function motorGuardarVentaRapida(i: {
         body: JSON.stringify({
           cliente: clienteId || undefined,
           fecha: new Date().toISOString().slice(0, 10),
-          formaPago: "credito",
+          formaPago: i.formaPago || "credito",
           anticipo: String(i.enganche || 0),
+          vendedor: i.vendedorId || undefined,
           partidas: [
             {
               entidad: "terrenos/lote",

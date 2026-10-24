@@ -5,6 +5,7 @@ import { DIAS_FRECUENCIA, proximoAbono } from "../lib/venta-utils";
 import { PlanoInteractivo } from "./PlanoInteractivo";
 import { pesos } from "../lib/format";
 import { getSavedSession, onAuthChange } from "../lib/auth";
+import { DEFAULT_CONFIG, calcularCotizacion, type ConfiguracionVentas } from "../lib/config";
 
 const MANZANAS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 const ESTADOS: Estado[] = ["Disponible", "Apartado", "Vendido", "Liquidado"];
@@ -22,12 +23,13 @@ type Props = {
   abonos: Abono[];
   clientes: Cliente[];
   vendedores: Vendedor[];
+  configuracion?: ConfiguracionVentas;
 };
 
 const VENTANAS = { hoy: 1, semana: 7, mes: 30, todo: Infinity } as const;
 type Ventana = keyof typeof VENTANAS;
 
-export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes, vendedores }: Props) {
+export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes, vendedores, configuracion = DEFAULT_CONFIG }: Props) {
   const [abonos, setAbonos] = useState<Abono[]>(abonosProp);
   const [seleccion, setSeleccion] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -260,7 +262,7 @@ export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes, vendedo
       </section>
 
       {lote && (
-        <FichaSheet lote={lote} venta={venta ?? null} cliente={cliente ?? null} clientes={clientes} vendedores={vendedores} abonos={abonos} saldo={saldoLote(lote)} totalAbonado={totalAbonadoLote(lote)} hoyMs={hoyMs} onAbono={(a) => setAbonos([...abonos, a])} onClose={() => setSeleccion(null)} />
+        <FichaSheet lote={lote} venta={venta ?? null} cliente={cliente ?? null} clientes={clientes} vendedores={vendedores} abonos={abonos} saldo={saldoLote(lote)} totalAbonado={totalAbonadoLote(lote)} hoyMs={hoyMs} configuracion={configuracion} onAbono={(a) => setAbonos([...abonos, a])} onClose={() => setSeleccion(null)} />
       )}
 
       <NotificacionesFAB
@@ -456,10 +458,10 @@ const ESTILO_FICHA: Record<Estado, { chip: string; texto: string }> = {
   Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado" },
 };
 
-function FichaSheet({ lote, venta, cliente, clientes, vendedores, abonos, saldo, totalAbonado, hoyMs, onAbono, onClose }: {
+function FichaSheet({ lote, venta, cliente, clientes, vendedores, abonos, saldo, totalAbonado, hoyMs, configuracion = DEFAULT_CONFIG, onAbono, onClose }: {
   lote: Lote; venta: Venta | null; cliente: Cliente | null;
   clientes: Cliente[]; vendedores: Vendedor[]; abonos: Abono[]; saldo: number; totalAbonado: number;
-  hoyMs: number; onAbono: (a: Abono) => void; onClose: () => void;
+  hoyMs: number; configuracion?: ConfiguracionVentas; onAbono: (a: Abono) => void; onClose: () => void;
 }) {
   const abonosReales = venta
     ? abonos.filter((a) => a.ventaId === venta.ventaId).sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
@@ -593,7 +595,7 @@ function FichaSheet({ lote, venta, cliente, clientes, vendedores, abonos, saldo,
         )}
 
         <div className="px-5 py-4 space-y-2">
-          <EditarLote lote={lote} venta={venta} cliente={cliente} clientes={clientes} vendedores={vendedores} />
+          <EditarLote lote={lote} venta={venta} cliente={cliente} clientes={clientes} vendedores={vendedores} configuracion={configuracion} />
           <a href={`/lotes/${lote.loteId}`} className="h-11 w-full grid place-items-center rounded-2xl border border-border text-sm text-muted-foreground transition hover:border-primary hover:text-primary">
             Abrir ficha completa ↗
           </a>
@@ -603,19 +605,40 @@ function FichaSheet({ lote, venta, cliente, clientes, vendedores, abonos, saldo,
   );
 }
 
-function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote; venta?: Venta | null; cliente?: Cliente | null; clientes: Cliente[]; vendedores: Vendedor[] }) {
+function EditarLote({ lote, venta, cliente, clientes, vendedores, configuracion = DEFAULT_CONFIG }: {
+  lote: Lote; venta?: Venta | null; cliente?: Cliente | null;
+  clientes: Cliente[]; vendedores: Vendedor[]; configuracion?: ConfiguracionVentas;
+}) {
   const opciones = ["Disponible","Apartado","Vendido","Liquidado"] as Estado[];
   const [abierto, setAbierto] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState<Estado>(lote.estado);
   const [nombre, setNombre] = useState(cliente?.nombre ?? "");
   const [nota, setNota] = useState(venta?.notas ?? "");
-  const [enganche, setEnganche] = useState(String(venta?.enganche ?? ""));
+  const [enganche, setEnganche] = useState(String(venta?.enganche ?? configuracion.engancheDefault));
   const [cuotaPeriodo, setCuotaPeriodo] = useState(String(venta?.cuotaPeriodo ?? ""));
   const [vendedorId, setVendedorId] = useState(venta?.vendedorId ?? "");
-  const [comisionPctVenta, setComisionPctVenta] = useState(String(venta?.comisionPctVenta ?? ""));
   const [editarPrecio, setEditarPrecio] = useState(false);
   const [precioLista, setPrecioLista] = useState(String(lote.precioLista ?? ""));
   const [frecuencia, setFrecuencia] = useState(venta?.frecuenciaPago || "Mensual");
+
+  // Stepper de meses: buscar en notas (ej. "plazo:12meses"), o calcular, o default a 12 meses
+  const mesesIniciales = (() => {
+    const m = venta?.notas?.match(/plazo:(\d+)meses/i);
+    if (m) return Number(m[1]);
+    if (venta?.frecuenciaPago === "Mensual" && venta?.cuotaPeriodo && venta?.precioFinal) {
+      const saldo = venta.precioFinal - venta.enganche;
+      return Math.max(1, Math.round(saldo / venta.cuotaPeriodo));
+    }
+    return 12;
+  })();
+  const [meses, setMeses] = useState<number>(mesesIniciales);
+
+  const cotizacion = useMemo(() => {
+    const base = Number(precioLista) || lote.precioLista || 0;
+    const eng = Number(enganche) || 0;
+    return calcularCotizacion(base, eng, meses, configuracion);
+  }, [precioLista, lote.precioLista, enganche, meses, configuracion]);
+
   const [guardando, setGuardando] = useState(false);
   const [confirmDisp, setConfirmDisp] = useState(false);
   const [listaClientes, setListaClientes] = useState(clientes);
@@ -639,19 +662,26 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
 
   const ejecutarGuardado = async () => {
     setGuardando(true);
+    const precioParaGuardar = nuevoEstado === "Vendido" ? cotizacion.precioTotal : (Number(precioLista) || 0);
+    const cuotaParaGuardar = nuevoEstado === "Vendido" ? cotizacion.cuotaMensual : (Number(cuotaPeriodo) || 0);
+    const notaConPlazo = nuevoEstado === "Vendido"
+      ? `plazo:${cotizacion.meses}meses · modalidad:${cotizacion.modalidad} · interes:${pesos(cotizacion.interesMonto)} (${cotizacion.interesPct}%)${nota ? " · " + nota : ""}`
+      : nota;
+
     const { error } = await actions.guardarVentaRapida({
       loteId: lote.loteId,
       cliente: nombre,
       telefono: telefonoMostrado,
       estado: nuevoEstado,
-      precioFinal: Number(precioLista) || 0,
+      precioFinal: precioParaGuardar,
       precioListaNuevo: editarPrecio ? (Number(precioLista) || 0) : 0,
-      enganche: Math.min(Number(enganche) || 0, Number(precioLista) || 0),
-      cuotaPeriodo: Math.min(Number(cuotaPeriodo) || 0, Math.max((Number(precioLista) || 0) - (Number(enganche) || 0), 0)),
+      enganche: Math.min(Number(enganche) || 0, precioParaGuardar),
+      cuotaPeriodo: cuotaParaGuardar,
       vendedorId,
-      comisionPctVenta: Number(comisionPctVenta) || 0,
-      frecuenciaPago: frecuencia as any,
-      nota,
+      comisionPctVenta: configuracion.comisionPctDefault, // 20%
+      frecuenciaPago: "Mensual",
+      formaPago: cotizacion.esCredito ? "credito" : "contado",
+      nota: notaConPlazo,
     });
     setGuardando(false);
     if (error) { alert(error.message); return; }
@@ -799,12 +829,12 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
                   <>
                     <div className="rounded-2xl border border-border bg-neutral-100 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <label className="font-mono text-xs text-muted-foreground">Costo del lote</label>
+                        <label className="font-mono text-xs text-muted-foreground">Costo base del lote</label>
                         <label className="flex items-center gap-2 cursor-pointer" title={esSecretariaSolo ? "Solo Dueño o Administradora pueden modificar precios" : undefined}>
                           <input type="checkbox" checked={editarPrecio} disabled={esSecretariaSolo} onChange={(e) => setEditarPrecio(e.target.checked)}
                             className="size-5 rounded-full appearance-none border-2 border-border checked:bg-primary checked:border-primary cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition" />
                           <span className={`font-mono text-[11px] ${esSecretariaSolo ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
-                            {esSecretariaSolo ? "Precio protegido" : "Editar precio"}
+                            {esSecretariaSolo ? "Precio protegido" : "Editar precio base"}
                           </span>
                         </label>
                       </div>
@@ -813,74 +843,178 @@ function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote
                         className={`mt-2 h-11 w-full rounded-xl border border-border px-3 font-mono text-lg font-bold outline-none focus:ring-2 focus:ring-ring ${editarPrecio ? "bg-white" : "bg-neutral-200 opacity-70"}`} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        {(() => {
-                          const maxEng = Number(precioLista) || 0;
-                          const val = Number(enganche) || 0;
-                          const exc = maxEng > 0 && val > maxEng;
-                          return (
-                            <>
+                    {/* Enganche (default $5,000 MXN) */}
+                    <div>
+                      {(() => {
+                        const maxEng = cotizacion.precioTotal || Number(precioLista) || 0;
+                        const val = Number(enganche) || 0;
+                        const exc = maxEng > 0 && val > maxEng;
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
                               <label className="font-mono text-[11px] uppercase text-muted-foreground">
-                                Enganche{maxEng > 0 && <span className="opacity-70"> · máx {pesos(maxEng)}</span>}
+                                Enganche inicial ($)
                               </label>
-                              <input inputMode="numeric" value={enganche} onChange={(e) => setEnganche(e.target.value.replace(/[^\d]/g, ""))}
-                                placeholder="0" className={`mt-1 h-11 w-full rounded-2xl border ${exc ? "border-apartado" : "border-border"} bg-neutral-200 px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring`} />
-                              {exc && <p className="mt-1 font-mono text-[11px] text-apartado">⚠ Excede el costo. Se guardará capado.</p>}
-                            </>
-                          );
-                        })()}
-                      </div>
-                      <div>
-                        <label className="font-mono text-[11px] uppercase text-muted-foreground">Frecuencia de pago</label>
-                        <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as any)}
-                          className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-                          <option>Semanal</option><option>Quincenal</option><option>Mensual</option><option>Otro</option>
-                        </select>
-                      </div>
-                      <div className="col-span-2 grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="font-mono text-[11px] uppercase text-muted-foreground">Vendedor</label>
-                          <select value={vendedorId} onChange={(e) => {
-                              const id = e.target.value;
-                              setVendedorId(id);
-                              const vd = vendedores.find((x) => x.vendedorId === id);
-                              if (vd && !comisionPctVenta) setComisionPctVenta(String(vd.comisionPct));
-                            }}
-                            className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
-                            <option value="">— sin vendedor —</option>
-                            {vendedores.filter((v) => v.activo || v.vendedorId === vendedorId).map((v) => (
-                              <option key={v.vendedorId} value={v.vendedorId}>{v.nombre} ({v.comisionPct}%)</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="font-mono text-[11px] uppercase text-muted-foreground">Comisión % (en esta venta)</label>
-                          <input inputMode="decimal" value={comisionPctVenta} onChange={(e) => setComisionPctVenta(e.target.value.replace(/[^\d.]/g, ""))}
-                            placeholder="0" className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring" />
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="font-mono text-[11px] uppercase text-muted-foreground">
-                          Monto por período (cuota)
-                          {(() => {
-                            const max = (Number(precioLista) || 0) - (Number(enganche) || 0);
-                            return max > 0 ? <span className="opacity-70"> · máx {pesos(max)}</span> : null;
-                          })()}
+                              <span className="font-mono text-[10px] text-muted-foreground">
+                                Predeterminado: {pesos(configuracion.engancheDefault)}
+                              </span>
+                            </div>
+                            <input
+                              inputMode="numeric"
+                              value={enganche}
+                              onChange={(e) => setEnganche(e.target.value.replace(/[^\d]/g, ""))}
+                              placeholder="5000"
+                              className={`mt-1 h-11 w-full rounded-2xl border ${exc ? "border-apartado" : "border-border"} bg-neutral-200 px-3 font-mono text-base font-semibold outline-none focus:ring-2 focus:ring-ring`}
+                            />
+                            {exc && <p className="mt-1 font-mono text-[11px] text-apartado">⚠ Excede el costo total. Se guardará capado.</p>}
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Stepper de meses a pagar */}
+                    <div className="rounded-2xl border border-border bg-neutral-100 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Plazo de pago
                         </label>
-                        {(() => {
-                          const max = (Number(precioLista) || 0) - (Number(enganche) || 0);
-                          const val = Number(cuotaPeriodo) || 0;
-                          const excede = max > 0 && val > max;
-                          return (
-                            <>
-                              <input inputMode="numeric" value={cuotaPeriodo} onChange={(e) => setCuotaPeriodo(e.target.value.replace(/[^\d]/g, ""))}
-                                placeholder="0" className={`mt-1 h-11 w-full rounded-2xl border ${excede ? "border-apartado" : "border-border"} bg-neutral-200 px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring`} />
-                              {excede && <p className="mt-1 font-mono text-[11px] text-apartado">⚠ Excede el saldo por financiar ({pesos(max)}). Se guardará capado.</p>}
-                            </>
-                          );
-                        })()}
+                        {cotizacion.esCredito ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-purple-100 text-purple-800 ring-1 ring-inset ring-purple-600/30">
+                            💳 A Crédito (+{cotizacion.interesPct}% interés)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-bold bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-600/30">
+                            ✓ De Contado (0% interés)
+                          </span>
+                        )}
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setMeses((m) => Math.max(1, m - 1))}
+                          className="size-11 rounded-2xl bg-white border border-border hover:bg-neutral-200/60 font-mono font-bold text-lg grid place-items-center transition active:scale-95"
+                          title="Menos meses"
+                        >
+                          −
+                        </button>
+                        <div className="flex-1 text-center py-2 px-3 rounded-2xl bg-white border border-border shadow-inner">
+                          <span className="font-mono text-2xl font-black text-foreground">
+                            {meses}
+                          </span>
+                          <span className="font-mono text-xs text-muted-foreground ml-1.5 font-semibold">
+                            {meses === 1 ? "mes" : "meses"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMeses((m) => Math.min(60, m + 1))}
+                          className="size-11 rounded-2xl bg-white border border-border hover:bg-neutral-200/60 font-mono font-bold text-lg grid place-items-center transition active:scale-95"
+                          title="Más meses"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      {/* Botones de plazo rápido */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {[1, 3, 6, 12, 18, 24, 36].map((plazo) => (
+                          <button
+                            key={plazo}
+                            type="button"
+                            onClick={() => setMeses(plazo)}
+                            className={`px-2.5 py-1 rounded-xl font-mono text-xs font-semibold transition ${
+                              meses === plazo
+                                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30"
+                                : "bg-white/80 border border-border text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {plazo === 3 ? "3m (Contado)" : `${plazo}m`}
+                          </button>
+                        ))}
+                      </div>
+
+                      <p className="font-mono text-[10px] text-muted-foreground leading-relaxed pt-1">
+                        {meses <= 3
+                          ? "✓ Plazos de 1 a 3 meses se consideran de Contado (sin cargo de intereses)."
+                          : `ℹ A partir de 3 meses se aplica cargo por interés (${configuracion.tasaInteresMensual}% mensual sobre los meses adicionales).`}
+                      </p>
+                    </div>
+
+                    {/* Tarjeta de Cotización en Vivo */}
+                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3.5 space-y-2">
+                      <div className="flex items-center justify-between pb-1 border-b border-primary/10">
+                        <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-primary">
+                          Resumen de Cotización
+                        </span>
+                        <span className="font-mono text-xs font-bold text-primary">
+                          {cotizacion.modalidad.toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Precio base del lote:</span>
+                          <span className="font-mono font-semibold">{pesos(cotizacion.precioBase)}</span>
+                        </div>
+                        {cotizacion.esCredito && (
+                          <div className="flex justify-between text-purple-700">
+                            <span>Interés ({cotizacion.interesPct}% por {meses - configuracion.mesesGraciaContado}m a crédito):</span>
+                            <span className="font-mono font-semibold">+{pesos(cotizacion.interesMonto)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between font-bold pt-1 border-t border-primary/10">
+                          <span>Precio final de venta:</span>
+                          <span className="font-mono text-sm text-foreground">{pesos(cotizacion.precioTotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Enganche inicial:</span>
+                          <span className="font-mono">-{pesos(cotizacion.enganche)}</span>
+                        </div>
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Saldo por liquidar:</span>
+                          <span className="font-mono font-semibold">{pesos(cotizacion.saldoFinanciar)}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-primary/15 flex items-center justify-between bg-white/70 p-2.5 rounded-xl">
+                        <div>
+                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                            Mensualidad ({cotizacion.meses} {cotizacion.meses === 1 ? "pago" : "pagos"})
+                          </span>
+                          <span className="font-mono text-lg font-black text-primary">
+                            {pesos(cotizacion.cuotaMensual)}
+                            <span className="text-xs font-normal text-muted-foreground"> / mes</span>
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                            Comisión ({configuracion.comisionPctDefault}%)
+                          </span>
+                          <span className="font-mono text-xs font-bold text-emerald-700">
+                            {pesos(cotizacion.comisionMonto)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vendedor (con comisión fija al 20%) */}
+                    <div>
+                      <label className="font-mono text-[11px] uppercase text-muted-foreground">
+                        Vendedor asignado
+                      </label>
+                      <select
+                        value={vendedorId}
+                        onChange={(e) => setVendedorId(e.target.value)}
+                        className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="">— sin vendedor —</option>
+                        {vendedores.filter((v) => v.activo || v.vendedorId === vendedorId).map((v) => (
+                          <option key={v.vendedorId} value={v.vendedorId}>
+                            {v.nombre} (Comisión {configuracion.comisionPctDefault}%)
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </>
                 )}

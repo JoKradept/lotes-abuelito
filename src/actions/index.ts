@@ -130,6 +130,7 @@ export const server = {
       enganche: z.coerce.number().optional().default(0),
       cuotaPeriodo: z.coerce.number().optional().default(0),
       frecuenciaPago: z.enum(["Semanal", "Quincenal", "Mensual", "Otro"]).default("Mensual"),
+      formaPago: z.enum(["contado", "credito"]).optional().default("credito"),
       nota: z.string().nullish().transform((v) => v ?? ""),
       vendedorId: z.string().nullish().transform((v) => v ?? ""),
       comisionPctVenta: z.coerce.number().optional().default(0),
