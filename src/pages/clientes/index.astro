@@ -35,7 +35,7 @@ for (const v of ventas) {
           return (
             <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
               <td class="px-4 py-3 font-mono">{c.clienteId}</td>
-              <td class="px-4 py-3 font-semibold">{c.nombre}</td>
+              <td class="px-4 py-3 font-semibold"><a href={`/clientes/${c.clienteId}`} class="hover:underline">{c.nombre}</a></td>
               <td class="px-4 py-3 font-mono text-xs">{c.telefono || "—"}</td>
               <td class="px-4 py-3 text-xs">{c.direccion || "—"}</td>
               <td class="px-4 py-3 text-center font-mono">{vs.length}</td>

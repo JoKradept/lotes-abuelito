@@ -1,12 +1,12 @@
 ---
 import Base from "../layouts/Base.astro";
-import { loadLotes, loadVentas, loadAbonos, loadClientes } from "../lib/domain";
+import { loadLotes, loadVentas, loadAbonos, loadClientes, loadVendedores } from "../lib/domain";
 import { Dashboard } from "../components/Dashboard";
 
-const [lotes, ventas, abonos, clientes] = await Promise.all([
-  loadLotes(), loadVentas(), loadAbonos(), loadClientes(),
+const [lotes, ventas, abonos, clientes, vendedores] = await Promise.all([
+  loadLotes(), loadVentas(), loadAbonos(), loadClientes(), loadVendedores(),
 ]);
 ---
 <Base title="Lotificación — Cumbres de Tiripetío">
-  <Dashboard client:only="react" lotes={lotes} ventas={ventas} abonos={abonos} clientes={clientes} />
+  <Dashboard client:only="react" lotes={lotes} ventas={ventas} abonos={abonos} clientes={clientes} vendedores={vendedores} />
 </Base>

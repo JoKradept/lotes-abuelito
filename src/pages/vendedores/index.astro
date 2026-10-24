@@ -1,0 +1,77 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadVendedores, loadVentas } from "../../lib/domain";
+import { pesos } from "../../lib/format";
+import { actions, isInputError } from "astro:actions";
+
+const result = Astro.getActionResult(actions.crearVendedor);
+if (result && !result.error) return Astro.redirect("/vendedores");
+const inputError = result && isInputError(result.error) ? result.error.fields : null;
+
+const [vendedores, ventas] = await Promise.all([loadVendedores(), loadVentas()]);
+const hoy = new Date();
+const ym = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+
+const comisionPorVendedor = new Map<string, { mes: number; total: number; ventasMes: number }>();
+for (const v of ventas) {
+  if (!v.vendedorId) continue;
+  const agg = comisionPorVendedor.get(v.vendedorId) ?? { mes: 0, total: 0, ventasMes: 0 };
+  const com = v.precioFinal * (v.comisionPctVenta || 0) / 100;
+  agg.total += com;
+  if (v.fecha.startsWith(ym)) { agg.mes += com; agg.ventasMes++; }
+  comisionPorVendedor.set(v.vendedorId, agg);
+}
+---
+<Base title="Vendedores">
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-3xl font-extrabold tracking-tight">Vendedores</h1>
+  </div>
+
+  <div class="glass rounded-3xl p-5 mb-6">
+    <h2 class="text-sm font-mono uppercase text-muted-foreground mb-3">Nuevo vendedor</h2>
+    <form method="POST" action={actions.crearVendedor} class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+      <input name="nombre" placeholder="Nombre" required class="h-11 rounded-2xl border border-border bg-white px-3 text-sm" />
+      <input name="telefono" placeholder="Teléfono" type="tel" class="h-11 rounded-2xl border border-border bg-white px-3 text-sm" />
+      <input name="comisionPct" placeholder="% comisión default" type="number" step="0.1" min="0" max="100" class="h-11 rounded-2xl border border-border bg-white px-3 font-mono text-sm" />
+      <button type="submit" class="h-11 rounded-2xl bg-primary text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">+ Agregar</button>
+    </form>
+    {inputError && <p class="mt-2 text-xs text-apartado font-mono">Revisa los datos.</p>}
+  </div>
+
+  <div class="glass rounded-3xl overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="border-b border-border">
+        <tr class="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+          <th class="px-4 py-3 text-left">ID</th>
+          <th class="px-4 py-3 text-left">Nombre</th>
+          <th class="px-4 py-3 text-left">Teléfono</th>
+          <th class="px-4 py-3 text-right">% default</th>
+          <th class="px-4 py-3 text-right">Ventas este mes</th>
+          <th class="px-4 py-3 text-right">Comisión mes</th>
+          <th class="px-4 py-3 text-right">Comisión total</th>
+          <th class="px-4 py-3 text-center">Activo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {vendedores.map((v) => {
+          const agg = comisionPorVendedor.get(v.vendedorId) ?? { mes: 0, total: 0, ventasMes: 0 };
+          return (
+            <tr class="border-b border-border/50 last:border-0 hover:bg-white/40">
+              <td class="px-4 py-3 font-mono">{v.vendedorId}</td>
+              <td class="px-4 py-3 font-semibold">{v.nombre}</td>
+              <td class="px-4 py-3 font-mono text-xs">{v.telefono || "—"}</td>
+              <td class="px-4 py-3 text-right font-mono">{v.comisionPct}%</td>
+              <td class="px-4 py-3 text-right font-mono">{agg.ventasMes}</td>
+              <td class="px-4 py-3 text-right font-mono font-semibold text-primary">{agg.mes ? pesos(agg.mes) : "—"}</td>
+              <td class="px-4 py-3 text-right font-mono">{agg.total ? pesos(agg.total) : "—"}</td>
+              <td class="px-4 py-3 text-center">{v.activo ? "✓" : "—"}</td>
+            </tr>
+          );
+        })}
+        {vendedores.length === 0 && (
+          <tr><td colspan="8" class="px-4 py-6 text-center text-muted-foreground text-sm">Aún no hay vendedores. Agrega el primero arriba.</td></tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</Base>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { actions } from "astro:actions";
-import type { Abono, Cliente, Estado, Lote, Venta } from "../lib/domain";
+import type { Abono, Cliente, Estado, Lote, Venta, Vendedor } from "../lib/domain";
 import { DIAS_FRECUENCIA, proximoAbono } from "../lib/venta-utils";
 import { PlanoInteractivo } from "./PlanoInteractivo";
 import { pesos } from "../lib/format";
@@ -20,12 +20,13 @@ type Props = {
   ventas: Venta[];
   abonos: Abono[];
   clientes: Cliente[];
+  vendedores: Vendedor[];
 };
 
 const VENTANAS = { hoy: 1, semana: 7, mes: 30, todo: Infinity } as const;
 type Ventana = keyof typeof VENTANAS;
 
-export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes }: Props) {
+export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes, vendedores }: Props) {
   const [abonos, setAbonos] = useState<Abono[]>(abonosProp);
   const [seleccion, setSeleccion] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -258,7 +259,7 @@ export function Dashboard({ lotes, ventas, abonos: abonosProp, clientes }: Props
       </section>
 
       {lote && (
-        <FichaSheet lote={lote} venta={venta ?? null} cliente={cliente ?? null} clientes={clientes} abonos={abonos} saldo={saldoLote(lote)} totalAbonado={totalAbonadoLote(lote)} hoyMs={hoyMs} onAbono={(a) => setAbonos([...abonos, a])} onClose={() => setSeleccion(null)} />
+        <FichaSheet lote={lote} venta={venta ?? null} cliente={cliente ?? null} clientes={clientes} vendedores={vendedores} abonos={abonos} saldo={saldoLote(lote)} totalAbonado={totalAbonadoLote(lote)} hoyMs={hoyMs} onAbono={(a) => setAbonos([...abonos, a])} onClose={() => setSeleccion(null)} />
       )}
 
       <NotificacionesFAB
@@ -454,9 +455,9 @@ const ESTILO_FICHA: Record<Estado, { chip: string; texto: string }> = {
   Liquidado:  { chip: "bg-liquidado-soft ring-liquidado/30",   texto: "text-liquidado" },
 };
 
-function FichaSheet({ lote, venta, cliente, clientes, abonos, saldo, totalAbonado, hoyMs, onAbono, onClose }: {
+function FichaSheet({ lote, venta, cliente, clientes, vendedores, abonos, saldo, totalAbonado, hoyMs, onAbono, onClose }: {
   lote: Lote; venta: Venta | null; cliente: Cliente | null;
-  clientes: Cliente[]; abonos: Abono[]; saldo: number; totalAbonado: number;
+  clientes: Cliente[]; vendedores: Vendedor[]; abonos: Abono[]; saldo: number; totalAbonado: number;
   hoyMs: number; onAbono: (a: Abono) => void; onClose: () => void;
 }) {
   const abonosReales = venta
@@ -466,7 +467,7 @@ function FichaSheet({ lote, venta, cliente, clientes, abonos, saldo, totalAbonad
   const engancheRow: Abono | null = venta && venta.enganche > 0 ? {
     abonoId: `${venta.ventaId}-ENG`, ventaId: venta.ventaId, fecha: venta.fecha,
     monto: venta.enganche, metodo: "Enganche", nota: "Enganche inicial",
-    cancelado: false, registradoEn: venta.fecha, avanzaFecha: false,
+    cancelado: false, registradoEn: venta.fecha, avanzaFecha: false, comprobanteUrl: "",
   } : null;
   const abonosLote = engancheRow ? [...abonosReales, engancheRow] : abonosReales;
   const proximo = venta && (lote.estado === "Vendido" || lote.estado === "Apartado") && saldo > 0 ? proximoAbono(venta, abonos) : null;
@@ -591,7 +592,7 @@ function FichaSheet({ lote, venta, cliente, clientes, abonos, saldo, totalAbonad
         )}
 
         <div className="px-5 py-4 space-y-2">
-          <EditarLote lote={lote} venta={venta} cliente={cliente} clientes={clientes} />
+          <EditarLote lote={lote} venta={venta} cliente={cliente} clientes={clientes} vendedores={vendedores} />
           <a href={`/lotes/${lote.loteId}`} className="h-11 w-full grid place-items-center rounded-2xl border border-border text-sm text-muted-foreground transition hover:border-primary hover:text-primary">
             Abrir ficha completa ↗
           </a>
@@ -601,7 +602,7 @@ function FichaSheet({ lote, venta, cliente, clientes, abonos, saldo, totalAbonad
   );
 }
 
-function EditarLote({ lote, venta, cliente, clientes }: { lote: Lote; venta?: Venta | null; cliente?: Cliente | null; clientes: Cliente[] }) {
+function EditarLote({ lote, venta, cliente, clientes, vendedores }: { lote: Lote; venta?: Venta | null; cliente?: Cliente | null; clientes: Cliente[]; vendedores: Vendedor[] }) {
   const opciones = ["Disponible","Apartado","Vendido","Liquidado"] as Estado[];
   const [abierto, setAbierto] = useState(false);
   const [nuevoEstado, setNuevoEstado] = useState<Estado>(lote.estado);
@@ -609,6 +610,8 @@ function EditarLote({ lote, venta, cliente, clientes }: { lote: Lote; venta?: Ve
   const [nota, setNota] = useState(venta?.notas ?? "");
   const [enganche, setEnganche] = useState(String(venta?.enganche ?? ""));
   const [cuotaPeriodo, setCuotaPeriodo] = useState(String(venta?.cuotaPeriodo ?? ""));
+  const [vendedorId, setVendedorId] = useState(venta?.vendedorId ?? "");
+  const [comisionPctVenta, setComisionPctVenta] = useState(String(venta?.comisionPctVenta ?? ""));
   const [editarPrecio, setEditarPrecio] = useState(false);
   const [precioLista, setPrecioLista] = useState(String(lote.precioLista ?? ""));
   const [frecuencia, setFrecuencia] = useState(venta?.frecuenciaPago || "Mensual");
@@ -638,6 +641,8 @@ function EditarLote({ lote, venta, cliente, clientes }: { lote: Lote; venta?: Ve
       precioListaNuevo: editarPrecio ? (Number(precioLista) || 0) : 0,
       enganche: Math.min(Number(enganche) || 0, Number(precioLista) || 0),
       cuotaPeriodo: Math.min(Number(cuotaPeriodo) || 0, Math.max((Number(precioLista) || 0) - (Number(enganche) || 0), 0)),
+      vendedorId,
+      comisionPctVenta: Number(comisionPctVenta) || 0,
       frecuenciaPago: frecuencia as any,
       nota,
     });
@@ -805,10 +810,32 @@ function EditarLote({ lote, venta, cliente, clientes }: { lote: Lote; venta?: Ve
                       </div>
                       <div>
                         <label className="font-mono text-[11px] uppercase text-muted-foreground">Frecuencia de pago</label>
-                        <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value)}
+                        <select value={frecuencia} onChange={(e) => setFrecuencia(e.target.value as any)}
                           className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
                           <option>Semanal</option><option>Quincenal</option><option>Mensual</option><option>Otro</option>
                         </select>
+                      </div>
+                      <div className="col-span-2 grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="font-mono text-[11px] uppercase text-muted-foreground">Vendedor</label>
+                          <select value={vendedorId} onChange={(e) => {
+                              const id = e.target.value;
+                              setVendedorId(id);
+                              const vd = vendedores.find((x) => x.vendedorId === id);
+                              if (vd && !comisionPctVenta) setComisionPctVenta(String(vd.comisionPct));
+                            }}
+                            className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring">
+                            <option value="">— sin vendedor —</option>
+                            {vendedores.filter((v) => v.activo || v.vendedorId === vendedorId).map((v) => (
+                              <option key={v.vendedorId} value={v.vendedorId}>{v.nombre} ({v.comisionPct}%)</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="font-mono text-[11px] uppercase text-muted-foreground">Comisión % (en esta venta)</label>
+                          <input inputMode="decimal" value={comisionPctVenta} onChange={(e) => setComisionPctVenta(e.target.value.replace(/[^\d.]/g, ""))}
+                            placeholder="0" className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 font-mono text-sm outline-none focus:ring-2 focus:ring-ring" />
+                        </div>
                       </div>
                       <div className="col-span-2">
                         <label className="font-mono text-[11px] uppercase text-muted-foreground">
@@ -903,6 +930,7 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
   const [metodo, setMetodo] = useState<"Efectivo"|"Transferencia"|"Cheque"|"Otro">("Efectivo");
   const [fecha, setFecha] = useState(new Date(hoyMs).toISOString().slice(0, 10));
   const [nota, setNota] = useState("");
+  const [comprobanteUrl, setComprobanteUrl] = useState("");
   const [personalizado, setPersonalizado] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -925,7 +953,7 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
   const saldoDespues = Math.max(saldo - montoNum, 0);
   const plazosRest = cuota > 0 ? Math.ceil(saldoDespues / cuota) : 0;
 
-  const registrar = async (fechaVal: string, monto: number, metodoVal: string, notaVal: string, avanza: boolean) => {
+  const registrar = async (fechaVal: string, monto: number, metodoVal: string, notaVal: string, avanza: boolean, compUrl: string) => {
     if (monto <= 0) return null;
     setGuardando(true);
     const fd = new FormData();
@@ -935,6 +963,7 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
     fd.set("metodo", metodoVal);
     fd.set("nota", notaVal);
     fd.set("avanzaFecha", avanza ? "true" : "false");
+    fd.set("comprobanteUrl", compUrl);
     const { data, error } = await actions.crearAbono(fd);
     setGuardando(false);
     if (error) { alert(error.message); return null; }
@@ -942,6 +971,7 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
       abonoId: data!.abonoId, ventaId: venta.ventaId, fecha: fechaVal,
       monto, metodo: metodoVal, nota: notaVal, cancelado: false,
       registradoEn: new Date(hoyMs).toISOString(), avanzaFecha: avanza,
+      comprobanteUrl: compUrl,
     };
     onAbono(nuevo);
     return nuevo;
@@ -951,7 +981,7 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
     e.preventDefault();
     // modo adelantar → siempre avanza. modo abono → solo avanza si atrasado.
     const avanza = modo === "adelantar" || atrasado;
-    const ok = await registrar(fecha, montoNum, metodo, nota, avanza);
+    const ok = await registrar(fecha, montoNum, metodo, nota, avanza, comprobanteUrl.trim());
     if (ok) cerrar();
   };
 
@@ -1035,6 +1065,12 @@ function RegistrarAbono({ venta, saldo, hoyMs, abonos, onAbono }: { venta: Venta
               <div>
                 <label className="font-mono text-[11px] uppercase text-muted-foreground">Nota (opcional)</label>
                 <input value={nota} onChange={(e) => setNota(e.target.value)}
+                  className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
+              </div>
+
+              <div>
+                <label className="font-mono text-[11px] uppercase text-muted-foreground">Comprobante — URL (opcional)</label>
+                <input value={comprobanteUrl} onChange={(e) => setComprobanteUrl(e.target.value)} placeholder="https://… (Drive, foto, etc.)" type="url"
                   className="mt-1 h-11 w-full rounded-2xl border border-border bg-neutral-200 px-3 text-sm outline-none focus:ring-2 focus:ring-ring" />
               </div>
 

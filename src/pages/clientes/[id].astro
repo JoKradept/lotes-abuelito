@@ -1,0 +1,150 @@
+---
+import Base from "../../layouts/Base.astro";
+import { loadClientes, loadVentas, loadAbonos, loadLotes } from "../../lib/domain";
+import { saldoVenta, proximoAbono } from "../../lib/venta-utils";
+import { pesos } from "../../lib/format";
+
+const { id } = Astro.params;
+const [clientes, ventas, abonos, lotes] = await Promise.all([
+  loadClientes(), loadVentas(), loadAbonos(), loadLotes(),
+]);
+const cliente = clientes.find((c) => c.clienteId === id);
+if (!cliente) return Astro.redirect("/clientes");
+
+const lotesPorId = new Map(lotes.map((l) => [l.loteId, l]));
+const ventasCliente = ventas.filter((v) => v.clienteId === cliente.clienteId);
+const totalPrecio = ventasCliente.reduce((s, v) => s + v.precioFinal, 0);
+const totalEnganche = ventasCliente.reduce((s, v) => s + v.enganche, 0);
+const totalAbonado = abonos
+  .filter((a) => !a.cancelado && ventasCliente.some((v) => v.ventaId === a.ventaId))
+  .reduce((s, a) => s + a.monto, 0);
+const totalSaldo = ventasCliente.reduce((s, v) => s + saldoVenta(v, abonos), 0);
+const hoy = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+---
+<Base title={`Estado de cuenta — ${cliente.nombre}`}>
+  <div class="flex justify-between items-center mb-4 print:hidden">
+    <a href="/clientes" class="text-sm font-mono text-muted-foreground hover:text-foreground">← Clientes</a>
+    <button onclick="window.print()" class="h-11 rounded-2xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/30">🖨 Imprimir / Guardar PDF</button>
+  </div>
+
+  <div class="glass rounded-3xl p-6 print:p-0 print:bg-white print:shadow-none print:rounded-none">
+    <div class="flex justify-between items-start border-b border-border pb-4 mb-4">
+      <div>
+        <p class="font-mono text-[11px] uppercase text-muted-foreground">Estado de cuenta</p>
+        <h1 class="text-3xl font-extrabold tracking-tight">{cliente.nombre}</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          {cliente.telefono && <span>Tel. {cliente.telefono} · </span>}
+          {cliente.direccion || "—"}
+        </p>
+      </div>
+      <div class="text-right">
+        <p class="font-mono text-[11px] uppercase text-muted-foreground">Fraccionamiento</p>
+        <p class="font-bold">Cumbres de Tiripetío</p>
+        <p class="font-mono text-xs text-muted-foreground mt-1">Corte al {hoy}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div class="rounded-2xl bg-neutral-100 border border-border p-3">
+        <p class="font-mono text-[10px] uppercase text-muted-foreground">Precio total</p>
+        <p class="text-lg font-extrabold">{pesos(totalPrecio)}</p>
+      </div>
+      <div class="rounded-2xl bg-neutral-100 border border-border p-3">
+        <p class="font-mono text-[10px] uppercase text-muted-foreground">Enganche</p>
+        <p class="text-lg font-extrabold">{pesos(totalEnganche)}</p>
+      </div>
+      <div class="rounded-2xl bg-neutral-100 border border-border p-3">
+        <p class="font-mono text-[10px] uppercase text-muted-foreground">Abonado</p>
+        <p class="text-lg font-extrabold">{pesos(totalAbonado)}</p>
+      </div>
+      <div class={`rounded-2xl border p-3 ${totalSaldo <= 0 ? "bg-disponible/15 border-disponible/30" : "bg-primary/10 border-primary/30"}`}>
+        <p class="font-mono text-[10px] uppercase text-muted-foreground">Saldo pendiente</p>
+        <p class={`text-lg font-extrabold ${totalSaldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(totalSaldo)}</p>
+      </div>
+    </div>
+
+    {ventasCliente.map((v) => {
+      const lote = lotesPorId.get(v.loteId);
+      const abonosV = abonos.filter((a) => a.ventaId === v.ventaId).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const saldo = saldoVenta(v, abonos);
+      const prox = proximoAbono(v, abonos);
+      return (
+        <div class="mb-6 border border-border rounded-2xl overflow-hidden">
+          <div class="bg-neutral-100 border-b border-border px-4 py-3 flex flex-wrap justify-between gap-2">
+            <div>
+              <p class="font-mono text-[11px] uppercase text-muted-foreground">Lote {v.loteId}</p>
+              <p class="text-sm">
+                {lote ? `${lote.frente}×${lote.fondo}m` : ""}
+                {lote?.calle ? ` · ${lote.calle}` : ""}
+                {lote?.esquina ? " · esquina" : ""}
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="font-mono text-[11px] uppercase text-muted-foreground">Venta {v.fecha}</p>
+              <p class="text-sm">
+                {pesos(v.precioFinal)} · enganche {pesos(v.enganche)} · cuota {v.cuotaPeriodo ? pesos(v.cuotaPeriodo) : "—"} {v.frecuenciaPago.toLowerCase()}
+              </p>
+            </div>
+          </div>
+          <table class="w-full text-sm">
+            <thead class="bg-white border-b border-border">
+              <tr class="font-mono text-[10px] uppercase text-muted-foreground">
+                <th class="px-3 py-2 text-left">Fecha</th>
+                <th class="px-3 py-2 text-left">Método</th>
+                <th class="px-3 py-2 text-left">Nota</th>
+                <th class="px-3 py-2 text-right">Monto</th>
+                <th class="px-3 py-2 text-left print:hidden">Comprobante</th>
+              </tr>
+            </thead>
+            <tbody>
+              {abonosV.map((a) => (
+                <tr class={`border-b border-border/50 last:border-0 ${a.cancelado ? "opacity-40 line-through" : ""}`}>
+                  <td class="px-3 py-2 font-mono">{a.fecha}</td>
+                  <td class="px-3 py-2">{a.metodo}</td>
+                  <td class="px-3 py-2 text-xs">{a.nota || "—"}</td>
+                  <td class="px-3 py-2 text-right font-mono font-semibold">{pesos(a.monto)}</td>
+                  <td class="px-3 py-2 print:hidden">
+                    {a.comprobanteUrl ? <a href={a.comprobanteUrl} target="_blank" class="text-primary text-xs underline">ver</a> : "—"}
+                  </td>
+                </tr>
+              ))}
+              {abonosV.length === 0 && (
+                <tr><td colspan="5" class="px-3 py-3 text-center text-muted-foreground text-xs">Sin abonos registrados.</td></tr>
+              )}
+            </tbody>
+            <tfoot class="bg-neutral-50 border-t border-border">
+              <tr class="font-mono text-xs">
+                <td colspan="3" class="px-3 py-2 text-right text-muted-foreground">Saldo pendiente de este lote</td>
+                <td class={`px-3 py-2 text-right font-extrabold ${saldo <= 0 ? "text-disponible" : "text-primary"}`}>{pesos(saldo)}</td>
+                <td class="print:hidden"></td>
+              </tr>
+              {saldo > 0 && (
+                <tr class="font-mono text-xs">
+                  <td colspan="3" class="px-3 py-2 text-right text-muted-foreground">Próximo pago</td>
+                  <td class="px-3 py-2 text-right font-semibold">{prox.toISOString().slice(0, 10)}</td>
+                  <td class="print:hidden"></td>
+                </tr>
+              )}
+            </tfoot>
+          </table>
+        </div>
+      );
+    })}
+
+    {ventasCliente.length === 0 && (
+      <p class="text-center text-muted-foreground text-sm py-8">Este cliente aún no tiene lotes asignados.</p>
+    )}
+
+    <p class="text-xs text-muted-foreground mt-6 print:mt-10 text-center">
+      Este estado de cuenta es informativo. Para cualquier aclaración, favor de comunicarse directamente con el fraccionamiento.
+    </p>
+  </div>
+</Base>
+
+<style is:global>
+  @media print {
+    body { background: white !important; }
+    header, main > .flex { display: none !important; }
+    main { padding: 0 !important; max-width: none !important; }
+  }
+</style>
